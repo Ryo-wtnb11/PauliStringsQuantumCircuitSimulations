@@ -1,0 +1,43 @@
+name: Test
+on:
+    pull_request:
+        branches:
+            - main
+
+concurrency:
+    # Skip intermediate builds: always.
+    # Cancel intermediate builds: only if it is a pull request build.
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+permissions:
+    contents: read
+
+name: Test
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: pin python version
+        run: uv python pin 3.12
+      - name: Install tox-uv
+        run: uv tool install tox --with tox-uv
+      - name: Run tests
+        run:  tox r -p -e py310,py311,py312

@@ -1,0 +1,7 @@
+site_name: PaulistringsQuantumCircuitSimulations
+theme:
+    name: material
+    features:
+        - navigation.tabs
+nav:
+    - Home: index.md
