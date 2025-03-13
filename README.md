@@ -1,3 +1,3 @@
-# variational-spd
+# PauliStringQuantumCircuitSimulation
 
-Describe your project here.
+Quantum Circuit Simulation based on the Sparse Pauli technique
