@@ -30,7 +30,7 @@
   ]
 
   # Same as Black.
-  line-length = 88
+  line-length = 100
   indent-width = 4
 
   # Assume Python 3.12
@@ -46,7 +46,7 @@
     "ISC001", "ISC002",
     "Q000", "Q001", "Q002", "Q003",
     "W191",
-    "S101",  # assert文の警告を無視
+    "S101",
   ]
 
   # Allow fix for all enabled rules (when `--fix`) is provided.

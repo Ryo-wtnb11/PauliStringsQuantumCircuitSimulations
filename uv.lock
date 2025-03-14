@@ -555,6 +555,7 @@ source = { editable = "." }
 dependencies = [
     { name = "jax" },
     { name = "numpy" },
+    { name = "stim" },
 ]
 
 [package.dev-dependencies]
@@ -570,6 +571,7 @@ dev = [
 requires-dist = [
     { name = "jax", specifier = ">=0.5.2" },
     { name = "numpy", specifier = ">=1.24.0" },
+    { name = "stim", specifier = ">=1.14.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -809,6 +811,29 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050 },
+]
+
+[[package]]
+name = "stim"
+version = "1.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/5b/c61d6fe29a2f3a57d50b61fabcb82e572390a6340a04567751d469344b74/stim-1.14.0.tar.gz", hash = "sha256:a0bbac90e81a50084ec104a04f6075956a266083370dd9e73210aabf770b469d", size = 813999 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/dc/90c512151ea0428f6e3e8435b964e8e09bcade78336737a4c25ae01dcdea/stim-1.14.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:c01b47ddc708aadc36a8a4b2f4873c54836120565f24b6a6b92ad7c650b1df58", size = 1858167 },
+    { url = "https://files.pythonhosted.org/packages/0d/b6/2a745f9bdfb6bdf8aa8a3314e2a621b7dd0d482f34bc639abee5bdd1e8f3/stim-1.14.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:13b1814cef65f591238f84be62c64c7cdd2494998a92911812207a69e52cbed6", size = 1739876 },
+    { url = "https://files.pythonhosted.org/packages/c9/05/7902e01f80a6ab6a6a318d3a2942f1c31fbac5225d3021f7953150f2f0ce/stim-1.14.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3568b4d79e90287aeb12581cb9b7a854e223427a95d19ea838d918b5d40431ea", size = 4735441 },
+    { url = "https://files.pythonhosted.org/packages/ab/7d/b5efb84c060059ab14791a79213a38412273e81ec203dc7ec3ca528d64a9/stim-1.14.0-cp310-cp310-win_amd64.whl", hash = "sha256:c42ced0f4432b15954b88b93905e4f3815ee7c6b827f40917b74799b0f4fa3a7", size = 2504006 },
+    { url = "https://files.pythonhosted.org/packages/96/85/c928e75b52ce91d74c409c1cf2537c8b6e91176567ae4d5283b94e421951/stim-1.14.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:ea0f96c63a2d278b5eeb87ea1faea23ef5be9a7ae3bb16fcfa67cd00792471bc", size = 1860921 },
+    { url = "https://files.pythonhosted.org/packages/11/95/497325c2bf8f83782d1c5217e58cd736e67545cdadf9f909b120089a5e64/stim-1.14.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:0716c47bf5090db014373b44f471467f88b1a019698741bee189afdcb0dd3f19", size = 1742294 },
+    { url = "https://files.pythonhosted.org/packages/30/35/1fb567928b10a37d541bc809ac0883fdcd9f89b00b50ecf1e1761596a481/stim-1.14.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cb34d8ac0d13b604af70de0a6a58191045b4f3d09fc1ffedd91683315d1c99a6", size = 4743085 },
+    { url = "https://files.pythonhosted.org/packages/0b/55/bc54681d0969f400b08f562f946e2cad4216c4d5699982f6ba9bff177b57/stim-1.14.0-cp311-cp311-win_amd64.whl", hash = "sha256:ebe6fae7aa3b80d38deb662e4e410686d3af8c6a63eac44ae424b7d26e3726c4", size = 2505956 },
+    { url = "https://files.pythonhosted.org/packages/13/1b/9cc8cf338235a7585a11aae5d6c237bea2bbd6191063d08790bf402e5c33/stim-1.14.0-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:383464d27a7f2a692fe4877607e9f894f6edaf3e7b5ed2d55d3872794e0cfd0b", size = 1879441 },
+    { url = "https://files.pythonhosted.org/packages/02/2f/15d0ccba620aefdeb1c064f97eca04d57525611d7bc06e7934e96f02e8ec/stim-1.14.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:5a86f9ccf0be4e4cab6ba246c320aec5ade9aab5c586d8afa353440b7e6372b8", size = 1753495 },
+    { url = "https://files.pythonhosted.org/packages/19/71/de7c2a9e6cfe0ea078cdea34cb9d39a6898964880212254f47834e629779/stim-1.14.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ff7f6fee2bd6e1bc718b4e57205d6d3fc6d3c292c3eafd22fdb7a8d7b010a1b", size = 4735501 },
+    { url = "https://files.pythonhosted.org/packages/06/54/aa1269cab0e342de31f3122dd0c8e06be4624c1ca65bfdd09ee2ac4efb16/stim-1.14.0-cp312-cp312-win_amd64.whl", hash = "sha256:39425614ad476b0f8ddf75413a0710de00d1970c2a5b90ec417e221a1412d42c", size = 2506858 },
 ]
 
 [[package]]
