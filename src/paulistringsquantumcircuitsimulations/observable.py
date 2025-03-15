@@ -90,22 +90,23 @@ def expectation(observables: Observable | list[Observable]) -> jnp.ndarray:
     if isinstance(observables, Observable):
         observables = [observables]
 
-    total_expectation = jnp.zeros(1, dtype=jnp.float64)
+    total_expectation = jnp.array(0.0, dtype=jnp.float64)
 
     for obs in observables:
         xs, zs = obs.paulistring.to_numpy()
-        local_expectation = jnp.ones(1, dtype=jnp.float64)  # JAXの配列として初期化
+        local_expectation = jnp.array(1.0, dtype=jnp.float64)
 
         for x, z in zip(xs, zs, strict=False):
             if (z and not x) or (not z and not x):  # Z component or Identity
-                local_expectation = local_expectation * jnp.ones(1, dtype=jnp.float64)
+                local_expectation = local_expectation * jnp.array(1.0, dtype=jnp.float64)
             else:
-                local_expectation = local_expectation * jnp.zeros(
-                    1, dtype=jnp.float64
+                local_expectation = local_expectation * jnp.array(
+                    0.0, dtype=jnp.float64
                 )  # ⟨0|X|0⟩ = 0
-        total_expectation = total_expectation + jnp.array([obs.coefficient]) * local_expectation
 
-    return total_expectation
+        total_expectation = total_expectation + obs.coefficient * local_expectation
+
+    return total_expectation[...]
 
 
 def convert_paulistring(n: int, gate: str, index: int) -> stim.PauliString:
