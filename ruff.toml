@@ -40,6 +40,7 @@
   # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
   select = ["ALL"]
   ignore = [
+    "D1",    # undocumented
     "COM812", "COM819",
     "D100", "D203", "D213", "D300",
     "E111", "E114", "E117",
