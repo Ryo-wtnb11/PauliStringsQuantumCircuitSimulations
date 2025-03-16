@@ -31,4 +31,4 @@ jobs:
             - name: Install tox-uv
               run: uv tool install tox --with tox-uv
             - name: Run tests
-              run: tox run-parallel -e py310,py311,py312
+              run: tox run-parallel -e py311,py312
