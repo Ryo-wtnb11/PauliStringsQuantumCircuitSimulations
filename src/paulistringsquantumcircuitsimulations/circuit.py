@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from paulistringsquantumcircuitsimulations.exceptions import CircuitSystemSizeError
+
 
 @dataclass
 class Gate:
@@ -37,12 +39,25 @@ class Circuit:
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, n: int, instructions: list[Gate] | None = None) -> None:
         """Initialize an empty quantum circuit.
 
-        The circuit starts with no instructions. Gates can be added using the append method.
+        Args:
+            n (int): The number of qubits in the circuit.
+            instructions: Optional list of gates to initialize with.
+
         """
-        self.instructions: list[Gate] = []
+        self.n: int = n
+        self.instructions: list[Gate] = instructions if instructions is not None else []
 
     def append(self, gate: Gate) -> None:
+        """Append a gate to the circuit.
+
+        Args:
+            gate (Gate): The gate to be appended.
+
+        """
+        if max(gate.targets) >= self.n:
+            raise CircuitSystemSizeError(max(gate.targets), self.n)
+
         self.instructions.append(gate)

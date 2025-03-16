@@ -6,8 +6,8 @@ Pauli string evolution and expectation value calculations.
 
 import jax
 
-from .circuit import Gate
-from .observable import Observable, expectation, operator_evolution
+from .circuit import Circuit, Gate
+from .heisenbergsimulator import HeisenbergSimulator, Observable
 
 jax.config.update("jax_enable_x64", True)  # noqa: FBT003
-__all__ = ["Gate", "Observable", "expectation", "operator_evolution"]
+__all__ = ["Circuit", "Gate", "HeisenbergSimulator", "Observable"]

@@ -1,71 +1,73 @@
-  # Exclude a variety of commonly ignored directories.
-  exclude = [
-      ".bzr",
-      ".direnv",
-      ".eggs",
-      ".git",
-      ".git-rewrite",
-      ".hg",
-      ".ipynb_checkpoints",
-      ".mypy_cache",
-      ".nox",
-      ".pants.d",
-      ".pyenv",
-      ".pytest_cache",
-      ".pytype",
-      ".ruff_cache",
-      ".svn",
-      ".tox",
-      ".venv",
-      ".vscode",
-      "__pypackages__",
-      "_build",
-      "buck-out",
-      "build",
-      "dist",
-      "node_modules",
-      "site-packages",
-      "venv",
-      "tests/**/*.py",
-  ]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "tests/**/*.py",
+]
 
-  # Same as Black.
-  line-length = 100
-  indent-width = 4
+# Same as Black.
+line-length = 110
+indent-width = 4
 
-  # Assume Python 3.12
-  target-version = "py312"
+# Assume Python 3.12
+target-version = "py312"
 
-  [lint]
-  # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-  select = ["ALL"]
-  ignore = [
+[lint]
+select = ["ALL"]
+ignore = [
     "D1",    # undocumented
-    "COM812", "COM819",
-    "D100", "D203", "D213", "D300",
-    "E111", "E114", "E117",
-    "ISC001", "ISC002",
-    "Q000", "Q001", "Q002", "Q003",
-    "W191",
-    "S101",
-  ]
+    "D203",  # one blank line before class
+    "D213",  # multi-line summary second line
+    "TD001", # invalid todo tag
+    "TD002", # missing todo author
+    "TD003", # missing todo link
+    "PD011", # pandas use of dot values
+    "FIX002", # ignore TODO
+]
 
-  # Allow fix for all enabled rules (when `--fix`) is provided.
-  fixable = ["ALL"]
-  unfixable = []
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = [
+    "F401", # unused import
+    "F841", # unused variable
+]
 
-  # Allow unused variables when underscore-prefixed.
-  dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-  [format]
-  # Like Black, use double quotes for strings.
-  quote-style = "double"
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
 
-  # Like Black, indent with spaces, rather than tabs.
-  indent-style = "space"
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
 
-  # Like Black, respect magic trailing commas.
-  skip-magic-trailing-comma = false
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
 
-  # Like Black, automatically detect the appropriate line ending.
-  line-ending = "auto"
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
