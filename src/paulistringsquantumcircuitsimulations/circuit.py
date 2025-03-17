@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 
 from paulistringsquantumcircuitsimulations.exceptions import CircuitSystemSizeError
@@ -61,3 +62,41 @@ class Circuit:
             raise CircuitSystemSizeError(max(gate.targets), self.n)
 
         self.instructions.append(gate)
+
+
+def random_single_qubit_clifford_gate(index: int) -> Gate:
+    """Generate a random single-qubit Clifford gate.
+
+    Args:
+        index (int): The index of the qubit to apply the gate to.
+
+    Returns:
+        Gate: A random single-qubit Clifford gate.
+
+    """
+    gate_names = [
+        "C_NXYZ",
+        "C_NZYX",
+        "C_XNYZ",
+        "C_XYNZ",
+        "C_XYZ",
+        "C_ZNYX",
+        "C_ZYNX",
+        "C_ZYX",
+        "H",
+        "H_NXY",
+        "H_NXZ",
+        "H_NYZ",
+        "H_XY",
+        "H_XZ",
+        "H_YZ",
+        "S",
+        "SQRT_X",
+        "SQRT_X_DAG",
+        "SQRT_Y",
+        "SQRT_Y_DAG",
+        "SQRT_Z",
+        "SQRT_Z_DAG",
+        "S_DAG",
+    ]
+    return Gate(name=random.choice(gate_names), targets=[index])  # noqa: S311

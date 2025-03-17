@@ -5,7 +5,7 @@ import pytest
 import stim
 from typing import Any
 
-from paulistringsquantumcircuitsimulations import Gate, Circuit
+from paulistringsquantumcircuitsimulations.circuit import Circuit, Gate
 
 
 def test_circuit_creation() -> None:
