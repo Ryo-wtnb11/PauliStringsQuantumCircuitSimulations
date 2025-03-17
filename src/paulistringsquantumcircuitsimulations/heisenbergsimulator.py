@@ -16,11 +16,9 @@ class Observable:
 
     """
 
-    def __init__(self, coefficient: jnp.float64, paulistring: stim.PauliString | str) -> None:
+    def __init__(self, coefficient: jnp.float64, paulistring: stim.PauliString) -> None:
         self.coefficient: jnp.float64 = coefficient
-        self.paulistring: stim.PauliString = (
-            stim.PauliString(paulistring) if isinstance(paulistring, str) else paulistring
-        )
+        self.paulistring: stim.PauliString = paulistring
 
     def commutes(self, other: Self | stim.PauliString) -> bool:
         """Check if this observable commutes with another.
@@ -32,7 +30,12 @@ class Observable:
             bool: True if the observables commute, False otherwise
 
         """
-        return bool(self.paulistring.commutes(other.paulistring if isinstance(other, type(self)) else other))
+        result: bool = False
+        if isinstance(other, type(self)):
+            result = self.paulistring.commutes(other.paulistring)
+        else:
+            result = self.paulistring.commutes(other)
+        return result
 
     def expectation(self) -> jnp.ndarray:
         """Calculate expectation value of observables for |0...0⟩ state.
@@ -120,7 +123,7 @@ def _operator_evolution(
         observables = [observables]
     new_observables: list[Observable] = []
     if gate.name in ["Rx", "Ry", "Rz"]:
-        paulistring = _convert_paulistring(n, gate.name, gate.targets[0])
+        paulistring = convert_paulistring(n, gate.name, gate.targets[0])
         for observable in observables:
             if observable.commutes(paulistring):
                 new_observables.append(
@@ -159,7 +162,7 @@ def _operator_evolution(
     return new_observables
 
 
-def _convert_paulistring(n: int, gate: str, index: int) -> stim.PauliString:
+def convert_paulistring(n: int, gate: str, index: int) -> stim.PauliString:
     """Convert a gate to a PauliString.
 
     Args:

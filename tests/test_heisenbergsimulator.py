@@ -1,4 +1,4 @@
-"""Tests for HeisenbergSimulator module."""
+"""Tests for Observable module."""
 
 import jax.numpy as jnp
 import pytest
