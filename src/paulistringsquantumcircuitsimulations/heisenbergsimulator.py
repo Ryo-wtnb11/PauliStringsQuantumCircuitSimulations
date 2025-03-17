@@ -16,9 +16,13 @@ class Observable:
 
     """
 
-    def __init__(self, coefficient: jnp.float64, paulistring: stim.PauliString) -> None:
+    def __init__(self, coefficient: jnp.float64, paulistring: stim.PauliString | str) -> None:
         self.coefficient: jnp.float64 = coefficient
-        self.paulistring: stim.PauliString = paulistring
+        self.paulistring: stim.PauliString
+        if isinstance(paulistring, str):
+            self.paulistring = stim.PauliString(paulistring)
+        else:
+            self.paulistring = paulistring
 
     def commutes(self, other: Self | stim.PauliString) -> bool:
         """Check if this observable commutes with another.
@@ -123,7 +127,7 @@ def _operator_evolution(
         observables = [observables]
     new_observables: list[Observable] = []
     if gate.name in ["Rx", "Ry", "Rz"]:
-        paulistring = convert_paulistring(n, gate.name, gate.targets[0])
+        paulistring = _convert_paulistring(n, gate.name, gate.targets[0])
         for observable in observables:
             if observable.commutes(paulistring):
                 new_observables.append(
@@ -162,7 +166,7 @@ def _operator_evolution(
     return new_observables
 
 
-def convert_paulistring(n: int, gate: str, index: int) -> stim.PauliString:
+def _convert_paulistring(n: int, gate: str, index: int) -> stim.PauliString:
     """Convert a gate to a PauliString.
 
     Args:
