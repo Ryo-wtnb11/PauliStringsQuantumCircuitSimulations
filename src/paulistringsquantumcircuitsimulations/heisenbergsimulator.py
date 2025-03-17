@@ -18,11 +18,9 @@ class Observable:
 
     def __init__(self, coefficient: jnp.float64, paulistring: stim.PauliString | str) -> None:
         self.coefficient: jnp.float64 = coefficient
-        self.paulistring: stim.PauliString
-        if isinstance(paulistring, str):
-            self.paulistring = stim.PauliString(paulistring)
-        else:
-            self.paulistring = paulistring
+        self.paulistring: stim.PauliString = (
+            stim.PauliString(paulistring) if isinstance(paulistring, str) else paulistring
+        )
 
     def commutes(self, other: Self | stim.PauliString) -> bool:
         """Check if this observable commutes with another.
@@ -34,12 +32,7 @@ class Observable:
             bool: True if the observables commute, False otherwise
 
         """
-        result: bool = False
-        if isinstance(other, type(self)):
-            result = self.paulistring.commutes(other.paulistring)
-        else:
-            result = self.paulistring.commutes(other)
-        return result
+        return bool(self.paulistring.commutes(other.paulistring if isinstance(other, type(self)) else other))
 
     def expectation(self) -> jnp.ndarray:
         """Calculate expectation value of observables for |0...0⟩ state.
