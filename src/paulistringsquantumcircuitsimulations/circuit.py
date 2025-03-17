@@ -8,7 +8,7 @@ class Gate:
     """Represents a quantum gate operation.
 
     Args:
-        name (str): Name of the gate (e.g. "H", "X", "Y", "Z", "CNOT", "RX", "RY", "RZ", "S", "T")
+        name (str): Name of the gate (e.g. "H", "X", "Y", "Z", "CNOT", "RX", "RY", "RZ", "S")
         targets (list[int]): List of target qubit indices the gate operates on
 
     Note:
@@ -33,7 +33,7 @@ class Circuit:
         instructions (list[Gate]): List of gates to be executed
 
     Examples:
-        >>> circuit = Circuit()
+        >>> circuit = Circuit(n=2)
         >>> circuit.append(Gate(name="H", targets=[0]))
         >>> circuit.append(Gate(name="CNOT", targets=[0, 1]))
 
