@@ -21,5 +21,15 @@ circuit = Circuit(n=2)
 # Add a Hadamard gate to the circuit
 circuit.append(Gate(name="H", targets=[0]))
 
+# Create an observable
+observable = Observable(coefficient=1.0, paulistring=stim.PauliString("Z"))
 
+# Create a HeisenbergSimulator
+heisenberg_simulator = HeisenbergSimulator(circuit=circuit, observables=[observable])
+
+# Simulate the circuit
+observables = heisenberg_simulator.simulate()
+
+# Print the observables
+print(observables)
 ```
