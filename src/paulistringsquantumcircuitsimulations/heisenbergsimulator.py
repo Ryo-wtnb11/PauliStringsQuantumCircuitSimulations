@@ -122,7 +122,7 @@ def _operator_evolution(
     if isinstance(observables, Observable):
         observables = [observables]
     new_observables: list[Observable] = []
-    if gate.name in ["Rx", "Ry", "Rz", "T"]:
+    if gate.name in ["Rx", "Ry", "Rz"]:
         paulistring = convert_paulistring(n, gate.name, gate.targets[0])
         for observable in observables:
             if observable.commutes(paulistring):
