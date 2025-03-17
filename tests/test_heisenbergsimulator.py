@@ -5,7 +5,7 @@ import pytest
 import stim
 from typing import Any
 
-from paulistringsquantumcircuitsimulations import Gate, Circuit, HeisenbergSimulator, Observable
+from paulistringsquantumcircuitsimulations import Gate, Circuit, Observable, heisenberg_simulate
 
 def test_observable_creation() -> None:
     """Test Observable instance creation."""
@@ -21,8 +21,7 @@ def test_rx_rotation_expectation() -> None:
         Observable(coefficient=1.0, paulistring=stim.PauliString("X")),
         Observable(coefficient=1.0, paulistring=stim.PauliString("Z")),
     ]
-    simulator = HeisenbergSimulator(circuit=circuit, observables=hamiltonian)
-    observables = simulator.simulate()
+    observables = heisenberg_simulate(circuit, hamiltonian)
     expectation = jnp.sum(jnp.array([obs.expectation() for obs in observables]))
 
     # After Rx rotation, expect cos(theta)
