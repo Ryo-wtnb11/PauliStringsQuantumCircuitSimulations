@@ -53,7 +53,6 @@ class Observable:
         # If state is empty, use |0...0⟩ state
         if not state:
             state = "0" * len(xs)
-
         # Convert state to boolean array: "0" -> False, "1" -> True
         states = jnp.array([int(bit) for bit in state], dtype=jnp.bool_)
 

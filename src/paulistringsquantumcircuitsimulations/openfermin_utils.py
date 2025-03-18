@@ -24,8 +24,8 @@ def get_hamiltonian_info_from_molecule(
     *,
     run_fci: int = 1,
 ) -> HamiltonianInfo:
-    n: int = jnp.int64(molecule.n_orbitals) * 2
     molecule = run_pyscf(molecule, run_scf=1, run_fci=run_fci)
+    n: int = int(str(molecule.n_orbitals)) * 2
 
     n_electrons = molecule.n_electrons  # 電子数
 

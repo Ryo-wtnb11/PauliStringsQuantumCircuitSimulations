@@ -10,6 +10,7 @@ def heisenberg_simulate(
     circuit: Circuit,
     observables: list[Observable],
     threshold: float = 1e-8,
+    xy_weight: int = -1,
 ) -> list[Observable]:
     """Simulate the circuit.
 
@@ -17,13 +18,14 @@ def heisenberg_simulate(
         observables (dict[PauliString, jnp.complex128]): The observables to be simulated.
         circuit (Circuit): The circuit to be simulated.
         threshold: Optional threshold for filtering observables. If None, use the instance threshold.
+        xy_weight: Optional weight for the XY plane. If -1, use the circuit length.
 
     Returns:
         dict[PauliString, jnp.complex128]: The observables after the circuit is applied.
 
     """
-    observables_dict: dict[PauliString, jnp.complex128] = {}
     for gate in reversed(circuit.instructions):
+        observables_dict: dict[PauliString, jnp.complex128] = {}
         for observable in observables:
             if len(observable.paulistring) > circuit.n:
                 raise ObservableLengthError(len(observable.paulistring), circuit.n)
@@ -59,14 +61,17 @@ def heisenberg_simulate(
                     observables_dict.get(paulistring_, jnp.complex128(0.0)) + observable.coefficient
                 )
 
-    # Remove observables with coefficients below the threshold
-    new_observables: list[Observable] = [
-        Observable(coefficient=coefficient, paulistring=paulistring)
-        for paulistring, coefficient in observables_dict.items()
-        if jnp.abs(coefficient) > threshold
-    ]
+        # Remove observables with coefficients below the threshold
+        xy_weight = circuit.n if xy_weight == -1 else xy_weight
+        new_observables: list[Observable] = [
+            Observable(coefficient=coefficient, paulistring=paulistring)
+            for paulistring, coefficient in observables_dict.items()
+            if jnp.abs(coefficient) > threshold
+            and paulistring.count("X") + paulistring.count("Y") <= xy_weight
+        ]
+        observables = new_observables
 
-    return new_observables
+    return observables
 
 
 def _convert_paulistring(n: int, gate: str, index: int) -> PauliString:
