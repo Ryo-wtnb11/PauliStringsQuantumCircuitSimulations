@@ -1,17 +1,28 @@
 import numpy as np
 import stim
 
-from paulistringsquantumcircuitsimulations.paulioperator import PauliOperator
+from paulistringsquantumcircuitsimulations.paulioperators import PauliOperators
 
 
 def test_paulioperator_init() -> None:
-    pauli_operator = PauliOperator.from_string("ZXZ")
-    assert pauli_operator.sign == 1
-    assert np.all(pauli_operator.xs == stim.PauliString("ZXZ").to_numpy(bit_packed=True)[0])
-    assert np.all(pauli_operator.zs == stim.PauliString("ZXZ").to_numpy(bit_packed=True)[1])
+    paulistrings = ["___", "X__", "Y__", "Z__", "XX_", "XY_"]
+    pauli_operators = PauliOperators.from_strings(paulistrings=paulistrings, n_qubits=3)
+    pauli_operators.order_paulis()
+    assert np.all(pauli_operators.bits == np.array([
+            [0, 0],
+            [0, 1],
+            [1, 0],
+            [1, 1],
+            [3, 0],
+            [3, 2],
+        ],
+        dtype=np.uint64,
+    ))
 
-    pauli_operator = PauliOperator.from_string("-ZXZ")
-    assert pauli_operator.sign == -1
 
-    pauli_operator = PauliOperator.from_string("-iZXZ")
-    assert pauli_operator.sign == -1j
+    others = ["ZX_", "XX_", "YYY"]
+    other_pauli_operators = PauliOperators.from_strings(paulistrings=others, n_qubits=3)
+    assert np.all(pauli_operators.find_pauli_indices(other_pauli_operators) == np.array([4, 4, 6]))
+    assert np.all(pauli_operators.find_pauli(other_pauli_operators) == np.array([False, True, False]))
+
+
