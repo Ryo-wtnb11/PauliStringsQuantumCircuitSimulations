@@ -1,0 +1,113 @@
+import jax.numpy as jnp
+import stim
+
+from paulistringsquantumcircuitsimulations.circuit import Circuit
+from paulistringsquantumcircuitsimulations.exceptions import ObservableLengthError
+
+PauliString = type[str]
+
+
+def heisenberg_simulate(
+    circuit: Circuit,
+    observables: dict[PauliString, jnp.complex128],
+    threshold: float = 1e-8,
+) -> dict[PauliString, jnp.complex128]:
+    """Simulate the circuit.
+
+    Args:
+        observables (dict[PauliString, jnp.complex128]): The observables to be simulated.
+        circuit (Circuit): The circuit to be simulated.
+        threshold: Optional threshold for filtering observables. If None, use the instance threshold.
+
+    Returns:
+        dict[PauliString, jnp.complex128]: The observables after the circuit is applied.
+
+    """
+    new_observables = {}
+    for gate in reversed(circuit.instructions):
+        for paulistring, coefficient in observables.items():
+            if len(paulistring) > circuit.n:
+                raise ObservableLengthError(len(paulistring), circuit.n)
+
+            gate_paulistring = _convert_paulistring(circuit.n, gate.name, gate.targets[0])
+            if gate.name in ["Rx", "Ry", "Rz", "T"]:
+                if stim.PauliString(paulistring).commutes(stim.PauliString(gate_paulistring)):
+                    new_observables[paulistring] = (
+                        new_observables.get(paulistring, jnp.complex128(0.0)) + coefficient
+                    )
+                else:
+                    new_observables[paulistring] = (
+                        new_observables.get(paulistring, jnp.complex128(0.0))
+                        + jnp.cos(gate.parameter) * coefficient
+                    )
+
+                    po_stim_paulistring = stim.PauliString(gate_paulistring) * stim.PauliString(paulistring)
+                    paulistring_ = str(po_stim_paulistring)[-circuit.n :]
+                    new_observables[paulistring_] = (
+                        new_observables.get(paulistring_, jnp.complex128(0.0))
+                        + 1j * po_stim_paulistring.sign * jnp.sin(gate.parameter) * coefficient
+                    )
+            else:
+                o_stim_paulistring = stim.PauliString(paulistring)
+                pop_stim_paulistring = o_stim_paulistring.before(
+                    stim.CircuitInstruction(gate.name, gate.targets),
+                )
+                paulistring_ = str(pop_stim_paulistring)[-circuit.n :]
+                new_observables[paulistring_] = (
+                    new_observables.get(paulistring_, jnp.complex128(0.0)) + coefficient
+                )
+
+    # Remove observables with coefficients below the threshold
+    new_observables: dict[PauliString, jnp.complex128] = {
+        paulistring: coefficient
+        for paulistring, coefficient in new_observables.items()
+        if abs(coefficient) > threshold
+    }
+
+    return new_observables
+
+
+def expectation(observables: dict[PauliString, jnp.complex128]) -> jnp.float64:
+    """Calculate expectation value of observables for |0...0⟩ state.
+
+    Returns:
+        jnp.ndarray: Expectation value. Can be differentiated using JAX.
+
+    Example:
+        >>> obs = Observable(coefficient=1.0, paulistring=stim.PauliString("Z"))
+        >>> obs.expectation()  # ⟨0|Z|0⟩ = 1.0
+        DeviceArray(1., dtype=float64)
+
+    """
+    observable_value: jnp.ndarray = jnp.zeros(1, dtype=jnp.float64)
+    for paulistring, coefficient in observables.items():
+        paulistring_stim = stim.PauliString(paulistring)
+        xs, zs = paulistring_stim.to_numpy()
+        xs = jnp.array(xs, dtype=jnp.bool)
+        zs = jnp.array(zs, dtype=jnp.bool)
+        if jnp.any(xs):
+            observable_value += jnp.array(0.0, dtype=jnp.float64)
+        else:
+            observable_value += jnp.real(coefficient * paulistring_stim.sign)
+    return observable_value.item()
+
+
+def _convert_paulistring(n: int, gate: str, index: int) -> PauliString:
+    """Convert a gate to a PauliString.
+
+    Args:
+        n (int): The number of qubits.
+        gate (str): The gate to be converted.
+        index (int): The index of the qubit to be converted.
+
+    Returns:
+        stim.PauliString: The PauliString representation of the gate.
+
+    """
+    gate_symbols = {"Rx": "X", "Ry": "Y", "Rz": "Z", "T": "Z"}
+
+    pauli_chars: list[str] = ["_"] * n
+    pauli_chars[index] = gate_symbols.get(gate, "_")
+    pauli_str = "".join(pauli_chars)
+
+    return pauli_str

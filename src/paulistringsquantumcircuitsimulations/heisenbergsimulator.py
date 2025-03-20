@@ -1,183 +1,261 @@
-from typing import Self
-
 import jax.numpy as jnp
-import stim
+import numpy as np
+import numpy.typing as npt
+from jax import jit
 
-from paulistringsquantumcircuitsimulations.circuit import Circuit, Gate
-from paulistringsquantumcircuitsimulations.exceptions import ObservableLengthError
+from paulistringsquantumcircuitsimulations.circuit import Circuit
+from paulistringsquantumcircuitsimulations.exceptions import InvalidParameterError, SystemSizeError
+from paulistringsquantumcircuitsimulations.paulioperators import PauliOperators, PauliString
 
 
-class Observable:
-    """Observable.
+def evaluate_expectation_value_zero_state(
+    pauli: PauliOperators,
+    index: npt.NDArray[np.int64],
+) -> jnp.ndarray:
+    """Evaluate Pauli expectation value with respect to the |0> state.
 
     Args:
-        value (jnp.ndarray): The value of the observable.
-        pauli_string (stim.PauliString): The PauliString representation of the observable.
+        pauli: PauliOperators
+            The PauliOperators to evaluate the expectation value of.
+        index: npt.NDArray[np.int64]
+            The indices of the Pauli operators to evaluate the expectation value of.
+
+    Returns:
+        npt.NDArray[np.float64]: The expectation value of the Pauli operators.
 
     """
-
-    def __init__(self, coefficient: jnp.float64, paulistring: stim.PauliString) -> None:
-        self.coefficient: jnp.float64 = coefficient
-        self.paulistring: stim.PauliString = paulistring
-
-    def commutes(self, other: Self | stim.PauliString) -> bool:
-        """Check if this observable commutes with another.
-
-        Args:
-            other: Another Observable instance to check commutation with
-
-        Returns:
-            bool: True if the observables commute, False otherwise
-
-        """
-        result: bool = False
-        if isinstance(other, type(self)):
-            result = self.paulistring.commutes(other.paulistring)
-        else:
-            result = self.paulistring.commutes(other)
-        return result
-
-    def expectation(self) -> jnp.ndarray:
-        """Calculate expectation value of observables for |0...0⟩ state.
-
-        Returns:
-            jnp.ndarray: Expectation value. Can be differentiated using JAX.
-
-        Example:
-            >>> obs = Observable(coefficient=1.0, paulistring=stim.PauliString("Z"))
-            >>> obs.expectation()  # ⟨0|Z|0⟩ = 1.0
-            DeviceArray(1., dtype=float64)
-
-        """
-        xs, zs = self.paulistring.to_numpy()
-        xs = jnp.array(xs, dtype=jnp.bool)
-        zs = jnp.array(zs, dtype=jnp.bool)
-
-        if jnp.any(xs):
-            return jnp.array(0.0, dtype=jnp.float64)
-        return jnp.array(jnp.real(self.coefficient * self.paulistring.sign), dtype=jnp.float64)
+    return jnp.array(pauli.signs[index])
 
 
 class HeisenbergSimulator:
-    """Heisenberg Simulator.
+    """A class for simulating Heisenberg models."""
 
-    Args:
-        circuit (Circuit): The circuit to be simulated.
-        observables (list[Observable]): The observables to be simulated.
-        threshold (float): The threshold for the coefficient of the observables.
+    def __init__(
+        self,
+        circuit: Circuit,
+        paulistrings: list[PauliString],
+        n_qubits: int,
+        coefficients: list[complex] | None = None,
+        threshold: float = 0.0,
+    ) -> None:
+        if n_qubits != circuit.n_qubits:
+            raise SystemSizeError(n_qubits, circuit.n_qubits)
 
-    """
+        self.n_qubits = n_qubits
 
-    def __init__(self, circuit: Circuit, observables: list[Observable], threshold: float = 1e-8) -> None:
-        self.circuit = circuit
-        self.observables = observables
-        self.threshold = threshold
+        circuit_paulistrings, circuit_signs = circuit.get_paulistrings()
 
-        # Check if the observable length exceeds the circuit size
-        for observable in self.observables:
-            if len(observable.paulistring) > self.circuit.n:
-                raise ObservableLengthError(len(observable.paulistring), self.circuit.n)
+        self.circuit_paulioperator_list = [
+            PauliOperators.from_strings(
+                paulistrings=[circuit_paulistrings[i]],
+                signs=[circuit_signs[i]],
+                n_qubits=self.n_qubits,
+            )
+            for i in range(len(circuit_paulistrings))
+        ]
 
-    def simulate(self, threshold: float | None = None) -> list[Observable]:
-        """Simulate the circuit.
-
-        Args:
-            inplace: If True, modify the observables in-place. If False, return a new list.
-            threshold: Optional threshold for filtering observables. If None, use the instance threshold.
-
-        Returns:
-            list[Observable] | None: The observables after the circuit is applied if inplace=False.
-            None: If inplace=True and the observables are modified in-place.
-
-        """
-        evolved_observables = self.observables
-        current_threshold = threshold if threshold is not None else self.threshold
-
-        for gate in reversed(self.circuit.instructions):
-            evolved_observables = _operator_evolution(self.circuit.n, evolved_observables, gate)
-
-            # Remove observables with coefficients below the threshold
-            evolved_observables = [
-                observable
-                for observable in evolved_observables
-                if abs(observable.coefficient) > current_threshold
-            ]
-
-        return evolved_observables
-
-
-def _operator_evolution(
-    n: int,
-    observables: Observable | list[Observable],
-    gate: Gate,
-) -> list[Observable]:
-    """Operator evolution.
-
-    Args:
-        n (int): The number of qubits.
-        observables (Observable | list[Observable]): The observable(s) to be evolved.
-        gate (Gate): The gate to be applied.
-
-    """
-    if isinstance(observables, Observable):
-        observables = [observables]
-    new_observables: list[Observable] = []
-    if gate.name in ["Rx", "Ry", "Rz"]:
-        paulistring = convert_paulistring(n, gate.name, gate.targets[0])
-        for observable in observables:
-            if observable.commutes(paulistring):
-                new_observables.append(
-                    Observable(
-                        coefficient=observable.coefficient,
-                        paulistring=observable.paulistring,
-                    ),
-                )
-            else:
-                new_observables.extend(
-                    [
-                        Observable(
-                            coefficient=observable.coefficient * jnp.cos(gate.parameter),
-                            paulistring=observable.paulistring,
-                        ),
-                        Observable(
-                            coefficient=observable.coefficient * jnp.sin(gate.parameter),
-                            paulistring=1j * paulistring * observable.paulistring,
-                        ),
-                    ],
-                )
-    else:
-        new_observables.extend(
-            [
-                Observable(
-                    coefficient=observable.coefficient,
-                    paulistring=observable.paulistring.before(
-                        stim.CircuitInstruction(gate.name, gate.targets),
-                    ),
-                )
-                for observable in observables
-            ],
+        observables_paulistrings, observables_signs = circuit.transform_paulistrings(
+            paulistrings=paulistrings,
         )
 
-    # TODO: Combine observables with the same Pauli string to reduce the number of terms.
-    return new_observables
+        if coefficients is None:
+            coefficients = [1.0] * len(observables_paulistrings)
+
+        self.observables_paulioperators = PauliOperators.from_strings(
+            paulistrings=observables_paulistrings,
+            signs=observables_signs,
+            coefficients=coefficients,
+            n_qubits=n_qubits,
+        )
+        self.observables_paulioperators.order_paulis()
+
+        self.threshold = threshold
+
+    def run(self, parameters: jnp.ndarray) -> jnp.ndarray:
+        """Run the Heisenberg simulator.
+
+        Args:
+            parameters: npt.NDArray[jnp.float64]
+                The parameters of the circuit.
+
+        Returns:
+            npt.NDArray[jnp.float64]: The expectation value of the observables.
+
+        """
+        if parameters.shape[0] != len(self.circuit_paulioperator_list):
+            raise InvalidParameterError(len(self.circuit_paulioperator_list), parameters.shape[0])
+
+        for i in range(len(self.circuit_paulioperator_list)):
+            self.apply_pauli_operator(
+                circuit_paulioperator=self.circuit_paulioperator_list[i],
+                parameter=parameters[i],
+            )
+        nonzero_pauli_indices = np.where(self.observables_paulioperators.ztype())[0]
+        return jnp.real(
+            jnp.sum(
+                jnp.array(self.observables_paulioperators.coefficients[nonzero_pauli_indices])
+                * evaluate_expectation_value_zero_state(
+                    self.observables_paulioperators,
+                    nonzero_pauli_indices,
+                ),
+            ),
+        )
+
+    def apply_pauli_operator(
+        self,
+        circuit_paulioperator: PauliOperators,
+        parameter: jnp.ndarray,
+    ) -> None:
+        """Apply a Pauli operator to the circuit.
+
+        Args:
+            circuit_paulioperator: PauliOperators
+                The Pauli operator to apply.
+            parameter: npt.NDArray[jnp.float64]
+                The parameter of the circuit.
+
+        Returns:
+            PauliOperators: The Pauli operator applied to the circuit.
+
+        """
+        anticommuting = np.where(
+            self.observables_paulioperators.anticommutes(
+                circuit_paulioperator,
+            ),
+        )[0]
+        if len(anticommuting):
+            new_paulis, new_pauli_indices, new_pauli_in_observables = self.multiply_operators(
+                circuit_paulioperator,
+                anticommuting,
+            )
+            coeffs_sin: jnp.ndarray = jnp.array(self.observables_paulioperators.coefficients[anticommuting])
+            coeffs_sin = pmult(coeffs_sin, (1j) * jnp.sin(2 * parameter))
+
+            new_coeffs: jnp.ndarray = update_coeffs(
+                jnp.array(self.observables_paulioperators.coefficients),
+                jnp.array(
+                    self.observables_paulioperators.coefficients[
+                        new_pauli_indices % self.observables_paulioperators.size()[0]
+                    ],
+                ),
+                jnp.cos(2 * parameter),
+                jnp.sin(2 * parameter),
+                jnp.array(new_paulis.signs),
+                jnp.array(
+                    self.observables_paulioperators.signs[
+                        new_pauli_indices % self.observables_paulioperators.size()[0]
+                    ],
+                ),
+                anticommuting,
+                new_pauli_in_observables,
+            )
+            self.observables_paulioperators.coefficients = np.array(new_coeffs)
+            to_remove = a_lt_b(new_coeffs, self.threshold)
+            np_to_remove: npt.NDArray[np.bool_] = np.array(to_remove).astype(np.bool_)
+            np_to_remove = np_to_remove[anticommuting]
+            if np.any(np_to_remove):
+                self.observables_paulioperators.delete_pauli(anticommuting[np_to_remove])
+
+            to_add: jnp.ndarray = a_gt_b_and_not_c(
+                coeffs_sin,
+                self.threshold,
+                jnp.array(new_pauli_in_observables),
+            )
+            np_to_add: npt.NDArray[np.bool_] = np.array(to_add).astype(np.bool_)
+            if np.any(np_to_add):
+                self.add_new_paulis(new_paulis, coeffs_sin, np_to_add)
+
+    def multiply_operators(
+        self,
+        operator: PauliOperators,
+        anticommuting_indices: npt.NDArray[np.int64],
+    ) -> tuple[PauliOperators, npt.NDArray[np.int64], npt.NDArray[np.bool_]]:
+        new_pauli_operators = PauliOperators(
+            self.observables_paulioperators.bits[anticommuting_indices, :],
+            self.observables_paulioperators.signs[anticommuting_indices],
+            self.observables_paulioperators.coefficients[anticommuting_indices],
+            self.observables_paulioperators.n_qubits,
+        )
+        new_pauli_operators.compose_with(operator)
+        new_pauli_indices = self.observables_paulioperators.find_pauli_indices(
+            new_pauli_operators,
+        )
+        new_pauli_in_observables = self.observables_paulioperators.find_pauli(
+            new_pauli_operators,
+            new_pauli_indices,
+        )
+
+        return new_pauli_operators, new_pauli_indices, new_pauli_in_observables
+
+    def add_new_paulis(
+        self,
+        new_paulis: PauliOperators,
+        new_coeffs: jnp.ndarray,
+        ind_to_add: npt.NDArray[np.bool_],
+    ) -> None:
+        """Add rows of new_paulis at indices ind_to_add to self.observable.
+
+        These include Paulis that are above threshold and don't exist already in self.observable.
+
+        Args:
+            new_paulis: PauliOperators
+                The Pauli operators to add.
+            new_coeffs: jnp.ndarray
+                The coefficients of the Pauli operators to add.
+            ind_to_add: npt.NDArray[np.bool_]
+                The indices of the Pauli operators to add.
+
+        """
+        paulis_to_add = PauliOperators(
+            new_paulis.bits[ind_to_add, :],
+            new_paulis.signs[ind_to_add],
+            np.array(new_coeffs)[ind_to_add],
+            new_paulis.n_qubits,
+        )
+
+        paulis_to_add.order_paulis()
+
+        # Insert new Paulis and return new array of coefficients.
+        self.observables_paulioperators.insert_pauli(paulis_to_add)
 
 
-def convert_paulistring(n: int, gate: str, index: int) -> stim.PauliString:
-    """Convert a gate to a PauliString.
+@jit
+def pmult(
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+) -> jnp.ndarray:
+    return a * b
+
+
+def update_coeffs(  # noqa: PLR0913
+    coeffs1: jnp.ndarray,
+    coeffs2: jnp.ndarray,
+    c: jnp.ndarray,
+    s: jnp.ndarray,
+    sign1: jnp.ndarray,
+    sign2: jnp.ndarray,
+    index1: npt.NDArray[np.int64],
+    index_exists: npt.NDArray[np.bool_],
+) -> jnp.ndarray:
+    tmp = coeffs2 * (index_exists * (1j) * s * sign2 / sign1)
+    return coeffs1.at[index1].set(jnp.take(coeffs1, index1) * c + tmp)
+
+
+@jit
+def a_lt_b(a: jnp.ndarray, b: float) -> jnp.ndarray:
+    """Compare absolute values of vector elements with a scalar.
 
     Args:
-        n (int): The number of qubits.
-        gate (str): The gate to be converted.
-        index (int): The index of the qubit to be converted.
+        a: Vector input array
+        b: Scalar threshold value
 
     Returns:
-        stim.PauliString: The PauliString representation of the gate.
+        Boolean array where True indicates |a[i]| < b
 
     """
-    gate_symbols = {"Rx": "X", "Ry": "Y", "Rz": "Z", "T": "Z"}
+    return jnp.abs(a) < b
 
-    pauli_chars: list[str] = ["_"] * n
-    pauli_chars[index] = gate_symbols.get(gate, "_")
-    pauli_str = "".join(pauli_chars)
 
-    return stim.PauliString(pauli_str)
+@jit
+def a_gt_b_and_not_c(a: jnp.ndarray, b: float, c: jnp.ndarray) -> jnp.ndarray:
+    return (jnp.abs(a) >= b) & ~c

@@ -9,8 +9,12 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "jax>=0.5.2",
+    "numba>=0.61.0",
     "numpy>=1.24.0",
+    "openfermion",
+    "openfermionpyscf",
     "optax>=0.2.4",
+    "pyscf>=2.8.0",
     "stim>=1.14.0",
 ]
 
@@ -62,3 +66,7 @@ commands =
 deps = mypy
 commands = mypy src tests --ignore-missing-imports --strict-optional --disallow-untyped-defs
 """
+
+[tool.uv.sources]
+openfermion = { git = "https://github.com/quantumlib/OpenFermion" }
+openfermionpyscf = { git = "https://github.com/quantumlib/OpenFermion-PySCF" }
