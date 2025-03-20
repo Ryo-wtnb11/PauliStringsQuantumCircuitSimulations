@@ -142,7 +142,7 @@ def gate_to_paulistring(n: int, gate: str, index: list[int]) -> PauliString:
         stim.PauliString: The PauliString representation of the gate.
 
     """
-    gate_symbols = {"Rx": "X", "Ry": "Y", "Rz": "Z"}
+    gate_symbols = {"Rx": "X", "Ry": "-iY", "Rz": "Z"}
 
     pauli_chars: list[str] = ["_"] * n
     pauli_chars[index[0]] = gate_symbols.get(gate, "_")

@@ -111,11 +111,28 @@ def delete_index(
     return res, res_s, res_c
 
 
+@njit  # type: ignore[misc]
+def count_set_bits(n: int) -> int:
+    count = 0
+    while n:
+        count += n & 1
+        n >>= 1
+    return count
+
+
+@njit  # type: ignore[misc]
+def count_nonzero(bits: npt.NDArray[np.uint64]) -> int:
+    s = 0
+    for i in range(len(bits)):
+        s += count_set_bits(bits[i])
+    return s
+
+
 @njit(parallel=True)  # type: ignore[misc]
 def anticommutation(bits1: npt.NDArray[np.uint64], bits2: npt.NDArray[np.uint64]) -> npt.NDArray[np.bool_]:
     res = np.empty(len(bits1), dtype=np.int64)
     for i in prange(len(bits1)):
-        res[i] = np.count_nonzero(np.bitwise_and(bits1[i, :], bits2[:]))
+        res[i] = count_nonzero(np.bitwise_and(bits1[i, :], bits2[:]))
     return np.mod(res, 2)
 
 
@@ -137,7 +154,14 @@ def update_sign(
     """
     for i in prange(len(sign1)):
         n_common = np.count_nonzero(np.bitwise_and(bits1[i, :], bits2[:]))
-        sign1[i] = sign1[i] * sign2 * ((1j) ** (2 * n_common))
+        sign1[i] = sign1[i] * sign2 * ((-1j) ** (2 * n_common))
+
+
+@njit(parallel=True)  # type: ignore[misc]
+def not_equal(bits: npt.NDArray[np.uint64], bits_others: npt.NDArray[np.uint64]) -> npt.NDArray[np.bool_]:
+    c = np.empty(len(bits), dtype=np.bool_)
+    c = bits != bits_others
+    return c.astype(np.bool_)
 
 
 @njit(parallel=True)  # type: ignore[misc]
@@ -256,28 +280,20 @@ class PauliOperators:
     def insert_pauli(
         self,
         others: Self,
-        coeffs: list[complex] | npt.NDArray[np.complex128] | None = None,
     ) -> None:
         """Insert a new Pauli or a list of Paulis (stored in PauliRepresentation 'other') into 'self'.
 
         Args:
             others: Self
                 The PauliOperators to insert.
-            coeffs: npt.NDArray[np.float64]
-                The coefficients of the Pauli operators to insert.
 
         """
-        if coeffs is None:
-            coeffs = others.coefficients
-        elif isinstance(coeffs, list):
-            coeffs = np.array(coeffs, dtype=np.complex128)
-
         index = self.find_pauli_indices(others)
         self.bits, self.signs, self.coefficients = insert_index(
             self.bits,
             others.bits,
             (self.signs, others.signs),
-            (self.coefficients, coeffs),
+            (self.coefficients, others.coefficients),
             index,
         )
 
@@ -308,9 +324,10 @@ class PauliOperators:
 
         """
         nq = (self.n_qubits + 63) // 64
-        self_dot_other = anticommutation(self.bits[:, nq:], other.bits[0, :nq])
-        other_dot_self = anticommutation(self.bits[:, :nq], other.bits[0, nq:])
-        result: npt.NDArray[np.bool_] = self_dot_other | other_dot_self
+
+        a_dot_b = anticommutation(self.bits[:, nq:], other.bits[0, :nq])
+        b_dot_a = anticommutation(self.bits[:, :nq], other.bits[0, nq:])
+        result: npt.NDArray[np.bool_] = not_equal(a_dot_b, b_dot_a)
         return result
 
     def compose_with(self, other: Self) -> None:
@@ -321,11 +338,12 @@ class PauliOperators:
                 The PauliOperators to compose with.
 
         """
+        nq = (self.n_qubits + 63) // 64
         update_sign(
             self.signs[:],
             other.signs[0],
-            self.bits[:, : self.n_qubits],
-            other.bits[0, self.n_qubits :],
+            self.bits[:, :nq],
+            other.bits[0, nq:],
         )
         inplace_xor(self.bits, other.bits[0, :])
 

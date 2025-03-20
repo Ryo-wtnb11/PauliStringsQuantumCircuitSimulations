@@ -26,3 +26,10 @@ class InvalidGateError(ValueError):
 
     def __init__(self, gate: str) -> None:
         super().__init__(f"Invalid gate: {gate}")
+
+
+class InvalidParameterError(ValueError):
+    """Raised when the number of parameters is invalid."""
+
+    def __init__(self, expected: int, got: int) -> None:
+        super().__init__(f"Expected {expected} parameters, got {got}")
