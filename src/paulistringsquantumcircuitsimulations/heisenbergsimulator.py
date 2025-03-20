@@ -227,6 +227,7 @@ def pmult(
     return a * b
 
 
+@jit
 def update_coeffs(  # noqa: PLR0913
     coeffs1: jnp.ndarray,
     coeffs2: jnp.ndarray,
