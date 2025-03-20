@@ -36,16 +36,80 @@ def test_heisenberg_simulator() -> None:
         stim_x = stim.PauliString("X")
         stim_z = stim.PauliString("Z")
 
-        stim_yx = stim.PauliString("Y") * stim_x
-        stim_yz = stim.PauliString("Y") * stim_z
-
-        exp_ = (
-            expectation(stim_x, jnp.cos(parameters * 2))
-            + expectation(
+        exp_x = jnp.array(0.0, dtype=jnp.float64)
+        if stim_x.commutes(stim.PauliString("Y")):
+            exp_x = expectation(stim_x, jnp.array(1.0, dtype=jnp.float64))
+        else:
+            stim_yx = stim.PauliString("Y") * stim_x
+            exp_x = expectation(stim_x, jnp.cos(parameters * 2)) + expectation(
                 stim_yx,
                 (1.0j) * jnp.sin(parameters * 2),
             )
-            + expectation(stim_z, jnp.cos(parameters * 2))
-            + expectation(stim_yz, (1.0j) * jnp.sin(parameters * 2))
-        )
+
+        exp_z = jnp.array(0.0, dtype=jnp.float64)
+        if stim_z.commutes(stim.PauliString("Y")):
+            exp_z = expectation(stim_z, jnp.array(1.0, dtype=jnp.float64))
+        else:
+            stim_yz = stim.PauliString("Y") * stim_z
+            exp_z = expectation(stim_z, jnp.cos(parameters * 2)) + expectation(
+                stim_yz,
+                (1.0j) * jnp.sin(parameters * 2),
+            )
+
+        exp_ = exp_x + exp_z
+
         assert np.isclose(np.array(exp), np.array(exp_))
+
+def test_heisenberg_simulator_including_clifford_gates() -> None:
+    n = 1
+    circuit = Circuit(n_qubits=n)
+    circuit.append(Gate(name="H", targets=[0]))
+    circuit.append(Gate(name="Rz", targets=[0]))
+    circuit.append(Gate(name="H", targets=[0]))
+
+    paulistrings = ["X", "Z"]
+    simulator = HeisenbergSimulator(
+        circuit=circuit,
+        paulistrings=paulistrings,
+        n_qubits=n,
+    )
+
+    parameters = jnp.pi / 8
+    theta: jnp.ndarray = jnp.array([parameters], dtype=jnp.float64)
+    exp = simulator.run(theta)
+
+    stim_x = stim.PauliString("X")
+    stim_z = stim.PauliString("Z")
+
+    stim_x = stim_x.before(stim.CircuitInstruction("H", [0]))
+    stim_z = stim_z.before(stim.CircuitInstruction("H", [0]))
+
+    exp_x = jnp.array(0.0, dtype=jnp.float64)
+    if stim_x.commutes(stim.PauliString("Z")):
+        stim_x = stim_x.before(stim.CircuitInstruction("H", [0]))
+        exp_x = expectation(stim_x, jnp.array(1.0, dtype=jnp.float64))
+    else:
+        stim_xz = stim.PauliString("Z") * stim_x
+        stim_x = stim_x.before(stim.CircuitInstruction("H", [0]))
+        stim_xz = stim_xz.before(stim.CircuitInstruction("H", [0]))
+        exp_x = expectation(stim_x, jnp.cos(parameters * 2)) + expectation(
+            stim_xz,
+            (1.0j) * jnp.sin(parameters * 2),
+        )
+
+    exp_z = jnp.array(0.0, dtype=jnp.float64)
+    if stim_z.commutes(stim.PauliString("Z")):
+        stim_z = stim_z.before(stim.CircuitInstruction("H", [0]))
+        exp_z = expectation(stim_z, jnp.array(1.0, dtype=jnp.float64))
+    else:
+        stim_zz = stim.PauliString("Z") * stim_z
+        stim_z = stim_z.before(stim.CircuitInstruction("H", [0]))
+        stim_zz = stim_zz.before(stim.CircuitInstruction("H", [0]))
+        exp_z = expectation(stim_z, jnp.cos(parameters * 2)) + expectation(
+            stim_zz,
+            (1.0j) * jnp.sin(parameters * 2),
+        )
+
+    exp_ = exp_x + exp_z
+
+    assert np.isclose(np.array(exp), np.array(exp_))

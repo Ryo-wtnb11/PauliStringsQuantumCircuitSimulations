@@ -150,7 +150,6 @@ class HeisenbergSimulator:
                 new_pauli_in_observables,
             )
             self.observables_paulioperators.coefficients = np.array(new_coeffs)
-
             to_remove = a_lt_b(new_coeffs, self.threshold)
             np_to_remove: npt.NDArray[np.bool_] = np.array(to_remove).astype(np.bool_)
             np_to_remove = np_to_remove[anticommuting]

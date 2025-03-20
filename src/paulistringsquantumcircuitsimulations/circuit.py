@@ -124,7 +124,6 @@ class Circuit:
             circuit.append(gate.name, gate.targets)
 
         paulistrings_stim = [stim.PauliString(pauli).before(circuit) for pauli in paulistrings]
-
         return [str(pauli)[-self.n_qubits :] for pauli in paulistrings_stim], [
             pauli.sign for pauli in paulistrings_stim
         ]

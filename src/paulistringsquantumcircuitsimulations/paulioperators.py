@@ -229,7 +229,7 @@ class PauliOperators:
         xs, zs = zip(*[ps.to_numpy() for ps in paulis], strict=False)
         xs_ = np.array(xs, dtype=np.bool_)
         zs_ = np.array(zs, dtype=np.bool_)
-        bits = np.hstack((pack_bits(xs_), pack_bits(zs_)))
+        bits = np.hstack((pack_bits(zs_), pack_bits(xs_)))
 
         for ps in paulistrings:
             if len(ps) != n_qubits:
