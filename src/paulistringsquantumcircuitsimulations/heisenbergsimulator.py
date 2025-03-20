@@ -1,7 +1,8 @@
+import copy
+
 import jax.numpy as jnp
-import numpy as np
-import numpy.typing as npt
 from jax import jit
+from jaxtyping import Complex128, Float64, UInt64
 
 from paulistringsquantumcircuitsimulations.circuit import Circuit
 from paulistringsquantumcircuitsimulations.exceptions import InvalidParameterError, SystemSizeError
@@ -10,8 +11,8 @@ from paulistringsquantumcircuitsimulations.paulioperators import PauliOperators,
 
 def evaluate_expectation_value_zero_state(
     pauli: PauliOperators,
-    index: npt.NDArray[np.int64],
-) -> jnp.ndarray:
+    index: UInt64[jnp.ndarray, " n_op"],
+) -> Complex128[jnp.ndarray, " n_op"]:
     """Evaluate Pauli expectation value with respect to the |0> state.
 
     Args:
@@ -24,7 +25,7 @@ def evaluate_expectation_value_zero_state(
         npt.NDArray[np.float64]: The expectation value of the Pauli operators.
 
     """
-    return jnp.array(pauli.signs[index])
+    return pauli.signs[index]
 
 
 class HeisenbergSimulator:
@@ -69,17 +70,22 @@ class HeisenbergSimulator:
         )
         self.observables_paulioperators.order_paulis()
 
+        self.init_observables_paulioperators = copy.deepcopy(self.observables_paulioperators)
+
         self.threshold = threshold
 
-    def run(self, parameters: jnp.ndarray) -> jnp.ndarray:
+    def run(
+        self,
+        parameters: Float64[jnp.ndarray, " n_circuit_paulioperators"],
+    ) -> jnp.float64:
         """Run the Heisenberg simulator.
 
         Args:
-            parameters: npt.NDArray[jnp.float64]
+            parameters: Float64[jnp.ndarray, " n_circuit_paulioperators"]
                 The parameters of the circuit.
 
         Returns:
-            npt.NDArray[jnp.float64]: The expectation value of the observables.
+            jnp.float64: The expectation value of the observables.
 
         """
         if parameters.shape[0] != len(self.circuit_paulioperator_list):
@@ -90,10 +96,10 @@ class HeisenbergSimulator:
                 circuit_paulioperator=self.circuit_paulioperator_list[i],
                 parameter=parameters[i],
             )
-        nonzero_pauli_indices = np.where(self.observables_paulioperators.ztype())[0]
+        nonzero_pauli_indices = jnp.where(self.observables_paulioperators.ztype())[0]
         return jnp.real(
             jnp.sum(
-                jnp.array(self.observables_paulioperators.coefficients[nonzero_pauli_indices])
+                self.observables_paulioperators.coefficients[nonzero_pauli_indices]
                 * evaluate_expectation_value_zero_state(
                     self.observables_paulioperators,
                     nonzero_pauli_indices,
@@ -104,21 +110,21 @@ class HeisenbergSimulator:
     def apply_pauli_operator(
         self,
         circuit_paulioperator: PauliOperators,
-        parameter: jnp.ndarray,
+        parameter: jnp.float64,
     ) -> None:
         """Apply a Pauli operator to the circuit.
 
         Args:
             circuit_paulioperator: PauliOperators
                 The Pauli operator to apply.
-            parameter: npt.NDArray[jnp.float64]
+            parameter: jnp.float64
                 The parameter of the circuit.
 
         Returns:
             PauliOperators: The Pauli operator applied to the circuit.
 
         """
-        anticommuting = np.where(
+        anticommuting = jnp.where(
             self.observables_paulioperators.anticommutes(
                 circuit_paulioperator,
             ),
@@ -128,48 +134,42 @@ class HeisenbergSimulator:
                 circuit_paulioperator,
                 anticommuting,
             )
-            coeffs_sin: jnp.ndarray = jnp.array(self.observables_paulioperators.coefficients[anticommuting])
+            coeffs_sin: jnp.ndarray = self.observables_paulioperators.coefficients[anticommuting]
             coeffs_sin = pmult(coeffs_sin, (1j) * jnp.sin(2 * parameter))
 
             new_coeffs: jnp.ndarray = update_coeffs(
-                jnp.array(self.observables_paulioperators.coefficients),
-                jnp.array(
-                    self.observables_paulioperators.coefficients[
-                        new_pauli_indices % self.observables_paulioperators.size()[0]
-                    ],
-                ),
+                self.observables_paulioperators.coefficients,
+                self.observables_paulioperators.coefficients[
+                    new_pauli_indices % self.observables_paulioperators.size()[0]
+                ],
                 jnp.cos(2 * parameter),
                 jnp.sin(2 * parameter),
-                jnp.array(new_paulis.signs),
-                jnp.array(
-                    self.observables_paulioperators.signs[
-                        new_pauli_indices % self.observables_paulioperators.size()[0]
-                    ],
-                ),
+                new_paulis.signs,
+                self.observables_paulioperators.signs[
+                    new_pauli_indices % self.observables_paulioperators.size()[0]
+                ],
                 anticommuting,
                 new_pauli_in_observables,
             )
-            self.observables_paulioperators.coefficients = np.array(new_coeffs)
-            to_remove = a_lt_b(new_coeffs, self.threshold)
-            np_to_remove: npt.NDArray[np.bool_] = np.array(to_remove).astype(np.bool_)
-            np_to_remove = np_to_remove[anticommuting]
-            if np.any(np_to_remove):
-                self.observables_paulioperators.delete_pauli(anticommuting[np_to_remove])
+            self.observables_paulioperators.coefficients = new_coeffs
 
-            to_add: jnp.ndarray = a_gt_b_and_not_c(
+            to_remove = a_lt_b(new_coeffs, self.threshold)
+            if jnp.any(to_remove):
+                self.observables_paulioperators.delete_pauli(anticommuting[to_remove])
+
+            to_add = a_gt_b_and_not_c(
                 coeffs_sin,
                 self.threshold,
-                jnp.array(new_pauli_in_observables),
+                new_pauli_in_observables,
             )
-            np_to_add: npt.NDArray[np.bool_] = np.array(to_add).astype(np.bool_)
-            if np.any(np_to_add):
-                self.add_new_paulis(new_paulis, coeffs_sin, np_to_add)
+            if jnp.any(to_add):
+                self.add_new_paulis(new_paulis, coeffs_sin, to_add)
 
     def multiply_operators(
         self,
         operator: PauliOperators,
-        anticommuting_indices: npt.NDArray[np.int64],
-    ) -> tuple[PauliOperators, npt.NDArray[np.int64], npt.NDArray[np.bool_]]:
+        anticommuting_indices: jnp.ndarray,
+    ) -> tuple[PauliOperators, jnp.ndarray, jnp.ndarray]:
         new_pauli_operators = PauliOperators(
             self.observables_paulioperators.bits[anticommuting_indices, :],
             self.observables_paulioperators.signs[anticommuting_indices],
@@ -191,7 +191,7 @@ class HeisenbergSimulator:
         self,
         new_paulis: PauliOperators,
         new_coeffs: jnp.ndarray,
-        ind_to_add: npt.NDArray[np.bool_],
+        ind_to_add: jnp.ndarray,
     ) -> None:
         """Add rows of new_paulis at indices ind_to_add to self.observable.
 
@@ -209,7 +209,7 @@ class HeisenbergSimulator:
         paulis_to_add = PauliOperators(
             new_paulis.bits[ind_to_add, :],
             new_paulis.signs[ind_to_add],
-            np.array(new_coeffs)[ind_to_add],
+            new_coeffs[ind_to_add],
             new_paulis.n_qubits,
         )
 
@@ -217,6 +217,9 @@ class HeisenbergSimulator:
 
         # Insert new Paulis and return new array of coefficients.
         self.observables_paulioperators.insert_pauli(paulis_to_add)
+
+    def reset_observables(self) -> None:
+        self.observables_paulioperators = copy.deepcopy(self.init_observables_paulioperators)
 
 
 @jit
@@ -235,8 +238,8 @@ def update_coeffs(  # noqa: PLR0913
     s: jnp.ndarray,
     sign1: jnp.ndarray,
     sign2: jnp.ndarray,
-    index1: npt.NDArray[np.int64],
-    index_exists: npt.NDArray[np.bool_],
+    index1: jnp.ndarray,
+    index_exists: jnp.ndarray,
 ) -> jnp.ndarray:
     tmp = coeffs2 * (index_exists * (1j) * s * sign2 / sign1)
     return coeffs1.at[index1].set(jnp.take(coeffs1, index1) * c + tmp)

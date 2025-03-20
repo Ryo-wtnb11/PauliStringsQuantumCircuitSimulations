@@ -47,6 +47,7 @@ ignore = [
     "TD003", # missing todo link
     "PD011", # pandas use of dot values
     "FIX002", # ignore TODO
+    "F722", # for jaxtyping
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
