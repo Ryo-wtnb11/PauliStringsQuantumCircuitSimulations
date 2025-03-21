@@ -1,31 +1,42 @@
 import copy
 
+import jax
 import jax.numpy as jnp
-from jax import jit
-from jaxtyping import Complex128, Float64, UInt64
+from jaxtyping import Bool, Complex128, Float64, UInt64
 
 from paulistringsquantumcircuitsimulations.circuit import Circuit
 from paulistringsquantumcircuitsimulations.exceptions import InvalidParameterError, SystemSizeError
-from paulistringsquantumcircuitsimulations.paulioperators import PauliOperators, PauliString
+from paulistringsquantumcircuitsimulations.paulioperators import (
+    PauliString,
+    anticommutes,
+    compose_with,
+    delete_paulioperators,
+    find_paulioperators,
+    find_paulioperators_indices,
+    insert_paulioperators,
+    order_paulioperators,
+    paulioperators_from_strings,
+    ztype,
+)
 
 
 def evaluate_expectation_value_zero_state(
-    pauli: PauliOperators,
-    index: UInt64[jnp.ndarray, " n_op"],
-) -> Complex128[jnp.ndarray, " n_op"]:
+    signs: Complex128[jnp.ndarray, " n_op"],
+    index: UInt64[jnp.ndarray, " n"],
+) -> Complex128[jnp.ndarray, " n"]:
     """Evaluate Pauli expectation value with respect to the |0> state.
 
     Args:
-        pauli: PauliOperators
-            The PauliOperators to evaluate the expectation value of.
-        index: npt.NDArray[np.int64]
+        signs: Complex128[jnp.ndarray, " n_op"]
+            The signs of the Pauli operators to evaluate the expectation value of.
+        index: UInt64[jnp.ndarray, " n"]
             The indices of the Pauli operators to evaluate the expectation value of.
 
     Returns:
-        npt.NDArray[np.float64]: The expectation value of the Pauli operators.
+        Complex128[jnp.ndarray, " n"]: The expectation value of the Pauli operators.
 
     """
-    return pauli.signs[index]
+    return signs[index]
 
 
 class HeisenbergSimulator:
@@ -36,7 +47,7 @@ class HeisenbergSimulator:
         circuit: Circuit,
         paulistrings: list[PauliString],
         n_qubits: int,
-        coefficients: list[complex] | None = None,
+        coefficients: Complex128[jnp.ndarray, " n_op"] | list[complex] | None = None,
         threshold: float = 0.0,
     ) -> None:
         if n_qubits != circuit.n_qubits:
@@ -46,62 +57,72 @@ class HeisenbergSimulator:
 
         circuit_paulistrings, circuit_signs = circuit.get_paulistrings()
 
-        self.circuit_paulioperator_list = [
-            PauliOperators.from_strings(
+        self.circuit_bit_list: list[UInt64[jnp.ndarray, "1 n_qubits"]] = []
+        self.circuit_sign_list: list[Complex128[jnp.ndarray, "1 n_qubits"]] = []
+        for i in range(len(circuit_paulistrings)):
+            circuit_bit, circuit_sign, _ = paulioperators_from_strings(
                 paulistrings=[circuit_paulistrings[i]],
-                signs=[circuit_signs[i]],
+                signs=jnp.array([circuit_signs[i]], dtype=jnp.complex128),
                 n_qubits=self.n_qubits,
             )
-            for i in range(len(circuit_paulistrings))
-        ]
+            self.circuit_bit_list.append(circuit_bit)
+            self.circuit_sign_list.append(circuit_sign)
 
-        observables_paulistrings, observables_signs = circuit.transform_paulistrings(
+        paulistrings, signs = circuit.transform_paulistrings(
             paulistrings=paulistrings,
         )
 
-        if coefficients is None:
-            coefficients = [1.0] * len(observables_paulistrings)
-
-        self.observables_paulioperators = PauliOperators.from_strings(
-            paulistrings=observables_paulistrings,
-            signs=observables_signs,
+        observables_bits, observables_signs, observables_coefficients = paulioperators_from_strings(
+            paulistrings=paulistrings,
+            signs=signs,
             coefficients=coefficients,
             n_qubits=n_qubits,
         )
-        self.observables_paulioperators.order_paulis()
-
-        self.init_observables_paulioperators = copy.deepcopy(self.observables_paulioperators)
+        self.observables_bits, self.observables_signs, self.observables_coefficients = order_paulioperators(
+            bits=observables_bits,
+            signs=observables_signs,
+            coefficients=observables_coefficients,
+        )
 
         self.threshold = threshold
 
     def run(
         self,
-        parameters: Float64[jnp.ndarray, " n_circuit_paulioperators"],
+        parameters: Float64[jnp.ndarray, " n_circuit_parameters"],
     ) -> jnp.float64:
         """Run the Heisenberg simulator.
 
         Args:
-            parameters: Float64[jnp.ndarray, " n_circuit_paulioperators"]
+            parameters: Float64[jnp.ndarray, " n_circuit_parameters"]
                 The parameters of the circuit.
 
         Returns:
             jnp.float64: The expectation value of the observables.
 
         """
-        if parameters.shape[0] != len(self.circuit_paulioperator_list):
-            raise InvalidParameterError(len(self.circuit_paulioperator_list), parameters.shape[0])
+        if parameters.shape[0] != len(self.circuit_bit_list):
+            raise InvalidParameterError(len(self.circuit_bit_list), parameters.shape[0])
 
-        for i in range(len(self.circuit_paulioperator_list)):
-            self.apply_pauli_operator(
-                circuit_paulioperator=self.circuit_paulioperator_list[i],
+        observables_bits, observables_signs, observables_coefficients = (
+            copy.deepcopy(self.observables_bits),
+            copy.deepcopy(self.observables_signs),
+            copy.deepcopy(self.observables_coefficients),
+        )
+        for i in range(parameters.shape[0]):
+            observables_bits, observables_signs, observables_coefficients = self.apply_pauli_operator(
+                observables_bits=observables_bits,
+                circuit_bit=self.circuit_bit_list[i],
+                observables_signs=observables_signs,
+                circuit_sign=self.circuit_sign_list[i],
+                observables_coefficients=observables_coefficients,
                 parameter=parameters[i],
             )
-        nonzero_pauli_indices = jnp.where(self.observables_paulioperators.ztype())[0]
+        nonzero_pauli_indices = jnp.where(ztype(self.observables_bits, self.n_qubits))[0]
         return jnp.real(
             jnp.sum(
-                self.observables_paulioperators.coefficients[nonzero_pauli_indices]
+                observables_coefficients[nonzero_pauli_indices]
                 * evaluate_expectation_value_zero_state(
-                    self.observables_paulioperators,
+                    observables_signs,
                     nonzero_pauli_indices,
                 ),
             ),
@@ -109,120 +130,225 @@ class HeisenbergSimulator:
 
     def apply_pauli_operator(
         self,
-        circuit_paulioperator: PauliOperators,
+        observables_bits: UInt64[jnp.ndarray, " n_op n_qubits"],
+        circuit_bit: UInt64[jnp.ndarray, "1 n_qubits"],
+        observables_signs: Complex128[jnp.ndarray, " n_op"],
+        circuit_sign: Complex128[jnp.ndarray, "1 n_qubits"],
+        observables_coefficients: Complex128[jnp.ndarray, " n_op"],
         parameter: jnp.float64,
-    ) -> None:
+    ) -> tuple[
+        UInt64[jnp.ndarray, "n_op+n n_qubits"],
+        Complex128[jnp.ndarray, " n_op+n"],
+        Complex128[jnp.ndarray, " n_op+n"],
+    ]:
         """Apply a Pauli operator to the circuit.
 
         Args:
-            circuit_paulioperator: PauliOperators
-                The Pauli operator to apply.
+            observables_bits: UInt64[jnp.ndarray, " n_op n_qubits"]
+                The bits of the Pauli operators to apply.
+            circuit_bit: UInt64[jnp.ndarray, "1 n_qubits"]
+                The bit of the Pauli operator to apply.
+            observables_signs: Complex128[jnp.ndarray, " n_op"]
+                The signs of the Pauli operators to apply.
+            circuit_sign: Complex128[jnp.ndarray, "1 n_qubits"]
+                The sign of the Pauli operator to apply.
+            observables_coefficients: Complex128[jnp.ndarray, " n_op"]
+                The coefficients of the Pauli operators to apply.
             parameter: jnp.float64
                 The parameter of the circuit.
 
         Returns:
-            PauliOperators: The Pauli operator applied to the circuit.
+            tuple[
+                UInt64[jnp.ndarray, "n_op+n n_qubits"],
+                Complex128[jnp.ndarray, " n_op+n"],
+                Complex128[jnp.ndarray, " n_op+n"],
+            ]:
+                The new Pauli bits, the new Pauli signs, and the new Pauli coefficients.
 
         """
         anticommuting = jnp.where(
-            self.observables_paulioperators.anticommutes(
-                circuit_paulioperator,
+            anticommutes(
+                self.observables_bits,
+                circuit_bit,
+                self.n_qubits,
             ),
         )[0]
         if len(anticommuting):
-            new_paulis, new_pauli_indices, new_pauli_in_observables = self.multiply_operators(
-                circuit_paulioperator,
-                anticommuting,
+            new_bits, new_signs, pauli_indices, pauli_in_observables = self.multiply_operators(
+                observables_bits=observables_bits,
+                operator_bit=circuit_bit,
+                observables_signs=observables_signs,
+                operator_sign=circuit_sign,
+                anticommuting_indices=anticommuting,
             )
-            coeffs_sin: jnp.ndarray = self.observables_paulioperators.coefficients[anticommuting]
+            coeffs_sin: jnp.ndarray = observables_coefficients[anticommuting]
             coeffs_sin = pmult(coeffs_sin, (1j) * jnp.sin(2 * parameter))
 
             new_coeffs: jnp.ndarray = update_coeffs(
-                self.observables_paulioperators.coefficients,
-                self.observables_paulioperators.coefficients[
-                    new_pauli_indices % self.observables_paulioperators.size()[0]
-                ],
+                observables_coefficients,
+                observables_coefficients[pauli_indices % observables_bits.shape[0]],
                 jnp.cos(2 * parameter),
                 jnp.sin(2 * parameter),
-                new_paulis.signs,
-                self.observables_paulioperators.signs[
-                    new_pauli_indices % self.observables_paulioperators.size()[0]
-                ],
+                new_signs,
+                observables_signs[pauli_indices % observables_bits.shape[0]],
                 anticommuting,
-                new_pauli_in_observables,
+                pauli_in_observables,
             )
-            self.observables_paulioperators.coefficients = new_coeffs
+            observables_coefficients = new_coeffs
 
             to_remove = a_lt_b(new_coeffs, self.threshold)
             if jnp.any(to_remove):
-                self.observables_paulioperators.delete_pauli(anticommuting[to_remove])
+                observables_bits, observables_signs, observables_coefficients = delete_paulioperators(
+                    bits=observables_bits,
+                    signs=observables_signs,
+                    coefficients=observables_coefficients,
+                    index=anticommuting[to_remove],
+                )
 
             to_add = a_gt_b_and_not_c(
                 coeffs_sin,
                 self.threshold,
-                new_pauli_in_observables,
+                pauli_in_observables,
             )
             if jnp.any(to_add):
-                self.add_new_paulis(new_paulis, coeffs_sin, to_add)
+                observables_bits, observables_signs, observables_coefficients = self.add_new_paulis(
+                    observables_bits=observables_bits,
+                    new_bits=new_bits,
+                    observables_signs=observables_signs,
+                    new_signs=new_signs,
+                    observables_coefficients=observables_coefficients,
+                    new_coeffs=coeffs_sin,
+                    ind_to_add=to_add,
+                )
+
+        return observables_bits, observables_signs, observables_coefficients
 
     def multiply_operators(
         self,
-        operator: PauliOperators,
+        observables_bits: UInt64[jnp.ndarray, "n_op n_qubits"],
+        operator_bit: UInt64[jnp.ndarray, "1 n_qubits"],
+        observables_signs: Complex128[jnp.ndarray, " n_op"],
+        operator_sign: Complex128[jnp.ndarray, "1 n_qubits"],
         anticommuting_indices: jnp.ndarray,
-    ) -> tuple[PauliOperators, jnp.ndarray, jnp.ndarray]:
-        new_pauli_operators = PauliOperators(
-            self.observables_paulioperators.bits[anticommuting_indices, :],
-            self.observables_paulioperators.signs[anticommuting_indices],
-            self.observables_paulioperators.coefficients[anticommuting_indices],
-            self.observables_paulioperators.n_qubits,
+    ) -> tuple[
+        UInt64[jnp.ndarray, "n_op_new n_qubits"],
+        Complex128[jnp.ndarray, " n_op_new"],
+        UInt64[jnp.ndarray, " n_op_new"],
+        Bool[jnp.ndarray, " n_op_new"],
+    ]:
+        """Multiply the operators in the anticommuting_indices with the operator_bit.
+
+        Args:
+            observables_bits: UInt64[jnp.ndarray, "n_op n_qubits"]
+                The bits of the Pauli operators to multiply with.
+            operator_bit: UInt64[jnp.ndarray, "1 n_qubits"]
+                The bit of the operator to multiply with.
+            observables_signs: Complex128[jnp.ndarray, " n_op"]
+                The signs of the Pauli operators to multiply with.
+            operator_sign: Complex128[jnp.ndarray, "1 n_qubits"]
+                The sign of the operator to multiply with.
+            anticommuting_indices: jnp.ndarray
+                The indices of the operators to multiply with.
+
+        Returns:
+            tuple[
+                UInt64[jnp.ndarray, "n_op_new n_qubits"],
+                Complex128[jnp.ndarray, "n_op_new"],
+                UInt64[jnp.ndarray, " n_op_new"],
+                Bool[jnp.ndarray, " n_op_new"],
+            ]:
+                The new Pauli bits, the new Pauli signs, the indices of the new Pauli in the
+                observables, and the boolean array indicating if the new Pauli is in the observables.
+
+        """
+        new_pauli_operators, new_pauli_signs = compose_with(
+            observables_bits[anticommuting_indices, :],
+            operator_bit,
+            observables_signs[anticommuting_indices],
+            operator_sign,
+            self.n_qubits,
         )
-        new_pauli_operators.compose_with(operator)
-        new_pauli_indices = self.observables_paulioperators.find_pauli_indices(
+
+        new_pauli_indices = find_paulioperators_indices(
+            observables_bits,
             new_pauli_operators,
         )
-        new_pauli_in_observables = self.observables_paulioperators.find_pauli(
+        new_pauli_in_observables = find_paulioperators(
+            observables_bits,
             new_pauli_operators,
             new_pauli_indices,
         )
 
-        return new_pauli_operators, new_pauli_indices, new_pauli_in_observables
+        return new_pauli_operators, new_pauli_signs, new_pauli_indices, new_pauli_in_observables
 
     def add_new_paulis(
         self,
-        new_paulis: PauliOperators,
-        new_coeffs: jnp.ndarray,
-        ind_to_add: jnp.ndarray,
-    ) -> None:
+        observables_bits: UInt64[jnp.ndarray, "n_op n_qubits"],
+        new_bits: UInt64[jnp.ndarray, "n_op n_qubits"],
+        observables_signs: Complex128[jnp.ndarray, " n_op"],
+        new_signs: Complex128[jnp.ndarray, " n_op"],
+        observables_coefficients: Complex128[jnp.ndarray, " n_op"],
+        new_coeffs: Complex128[jnp.ndarray, " n_op"],
+        ind_to_add: UInt64[jnp.ndarray, " n"],
+    ) -> tuple[
+        UInt64[jnp.ndarray, "n_op+n n_qubits"],
+        Complex128[jnp.ndarray, " n_op+n"],
+        Complex128[jnp.ndarray, " n_op+n"],
+    ]:
         """Add rows of new_paulis at indices ind_to_add to self.observable.
 
         These include Paulis that are above threshold and don't exist already in self.observable.
 
         Args:
-            new_paulis: PauliOperators
-                The Pauli operators to add.
-            new_coeffs: jnp.ndarray
+            observables_bits: UInt64[jnp.ndarray, "n_op n_qubits"]
+                The bits of the Pauli operators to add.
+            new_bits: UInt64[jnp.ndarray, "n_op n_qubits"]
+                The bits of the Pauli operators to add.
+            observables_signs: Complex128[jnp.ndarray, " n_op"]
+                The signs of the Pauli operators to add.
+            new_signs: Complex128[jnp.ndarray, " n_op"]
+                The signs of the Pauli operators to add.
+            observables_coefficients: Complex128[jnp.ndarray, " n_op"]
                 The coefficients of the Pauli operators to add.
-            ind_to_add: npt.NDArray[np.bool_]
+            new_coeffs: Complex128[jnp.ndarray, " n_op"]
+                The coefficients of the Pauli operators to add.
+            ind_to_add: UInt64[jnp.ndarray, " n"]
                 The indices of the Pauli operators to add.
 
+        Returns:
+            tuple[
+                UInt64[jnp.ndarray, "n_op+n n_qubits"],
+                Complex128[jnp.ndarray, " n_op+n"],
+                Complex128[jnp.ndarray, " n_op+n"],
+            ]:
+                The new Pauli bits, the new Pauli signs, and the new Pauli coefficients.
+
         """
-        paulis_to_add = PauliOperators(
-            new_paulis.bits[ind_to_add, :],
-            new_paulis.signs[ind_to_add],
+        new_bits, new_signs, new_coeffs = order_paulioperators(
+            new_bits[ind_to_add, :],
+            new_signs[ind_to_add],
             new_coeffs[ind_to_add],
-            new_paulis.n_qubits,
         )
 
-        paulis_to_add.order_paulis()
-
         # Insert new Paulis and return new array of coefficients.
-        self.observables_paulioperators.insert_pauli(paulis_to_add)
+        (
+            observables_bits,
+            observables_signs,
+            observables_coefficients,
+        ) = insert_paulioperators(
+            bits=observables_bits,
+            other_bits=new_bits,
+            signs=observables_signs,
+            other_signs=new_signs,
+            coefficients=observables_coefficients,
+            other_coefficients=new_coeffs,
+            index=ind_to_add,
+        )
 
-    def reset_observables(self) -> None:
-        self.observables_paulioperators = copy.deepcopy(self.init_observables_paulioperators)
+        return observables_bits, observables_signs, observables_coefficients
 
 
-@jit
+@jax.jit
 def pmult(
     a: jnp.ndarray,
     b: jnp.ndarray,
@@ -230,22 +356,22 @@ def pmult(
     return a * b
 
 
-@jit
-def update_coeffs(  # noqa: PLR0913
-    coeffs1: jnp.ndarray,
-    coeffs2: jnp.ndarray,
-    c: jnp.ndarray,
-    s: jnp.ndarray,
-    sign1: jnp.ndarray,
-    sign2: jnp.ndarray,
-    index1: jnp.ndarray,
-    index_exists: jnp.ndarray,
-) -> jnp.ndarray:
-    tmp = coeffs2 * (index_exists * (1j) * s * sign2 / sign1)
-    return coeffs1.at[index1].set(jnp.take(coeffs1, index1) * c + tmp)
+@jax.jit
+def update_coeffs(
+    coeffs1: Complex128[jnp.ndarray, " n_op"],
+    coeffs2: Complex128[jnp.ndarray, " n_op_new"],
+    c: jnp.float64,
+    s: jnp.float64,
+    new_signs: Complex128[jnp.ndarray, " n_op_new"],
+    signs: Complex128[jnp.ndarray, " n_op_new"],
+    index_anticommuting: UInt64[jnp.ndarray, " n_anticommuting"],
+    index_exists: Bool[jnp.ndarray, " n_op_new"],
+) -> Complex128[jnp.ndarray, " n_op"]:
+    tmp = coeffs2 * (index_exists * (1j) * s * new_signs / signs)
+    return coeffs1.at[index_anticommuting].set(coeffs1.at[index_anticommuting].get() * c + tmp)
 
 
-@jit
+@jax.jit
 def a_lt_b(a: jnp.ndarray, b: float) -> jnp.ndarray:
     """Compare absolute values of vector elements with a scalar.
 
@@ -260,6 +386,6 @@ def a_lt_b(a: jnp.ndarray, b: float) -> jnp.ndarray:
     return jnp.abs(a) < b
 
 
-@jit
+@jax.jit
 def a_gt_b_and_not_c(a: jnp.ndarray, b: float, c: jnp.ndarray) -> jnp.ndarray:
     return (jnp.abs(a) >= b) & ~c

@@ -4,7 +4,6 @@ import stim
 
 from paulistringsquantumcircuitsimulations.circuit import Circuit, Gate
 from paulistringsquantumcircuitsimulations.heisenbergsimulator import HeisenbergSimulator
-from paulistringsquantumcircuitsimulations.paulioperators import PauliOperators
 
 def expectation(paulistrings: stim.PauliString, coefficients: jnp.ndarray) -> jnp.ndarray:
     xs, zs = paulistrings.to_numpy()
@@ -112,4 +111,4 @@ def test_heisenberg_simulator_including_clifford_gates() -> None:
 
     exp_ = exp_x + exp_z
 
-    assert np.isclose(np.array(exp), np.array(exp_))
+    assert jnp.isclose(jnp.array(exp), jnp.array(exp_))
