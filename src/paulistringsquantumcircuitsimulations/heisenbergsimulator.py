@@ -24,7 +24,7 @@ def evaluate_expectation_value_zero_state(
     signs: Complex128[jnp.ndarray, " n_op"],
     index: UInt64[jnp.ndarray, " n"],
 ) -> Complex128[jnp.ndarray, " n"]:
-    """Evaluate Pauli expectation value with respect to the |0> state.
+    """Evaluate Pauli expectation values with respect to the |0> state.
 
     Args:
         signs: Complex128[jnp.ndarray, " n_op"]
@@ -40,7 +40,17 @@ def evaluate_expectation_value_zero_state(
 
 
 class HeisenbergSimulator:
-    """A class for simulating Heisenberg models."""
+    """A class for simulating Heisenberg models.
+
+    Args:
+        circuit (Circuit): The circuit to simulate.
+        paulistrings (list[PauliString]): The Pauli strings to simulate.
+        n_qubits (int): The number of qubits in the circuit.
+        coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None)
+            : The coefficients of the Pauli strings.
+        threshold (float): The threshold for the Pauli strings.
+
+    """
 
     def __init__(
         self,
@@ -48,8 +58,19 @@ class HeisenbergSimulator:
         paulistrings: list[PauliString],
         n_qubits: int,
         coefficients: Complex128[jnp.ndarray, " n_op"] | list[complex] | None = None,
-        threshold: float = 0.0,
+        threshold: float = 0.01,
     ) -> None:
+        """Initialize the HeisenbergSimulator.
+
+        Args:
+            circuit (Circuit): The circuit to simulate.
+            paulistrings (list[PauliString]): The Pauli strings to simulate.
+            n_qubits (int): The number of qubits in the circuit.
+            coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None)
+                :The coefficients of the Pauli strings.
+            threshold (float): The threshold for the Pauli strings.
+
+        """
         if n_qubits != circuit.n_qubits:
             raise SystemSizeError(n_qubits, circuit.n_qubits)
 
@@ -93,7 +114,7 @@ class HeisenbergSimulator:
         """Run the Heisenberg simulator.
 
         Args:
-            parameters: Float64[jnp.ndarray, " n_circuit_parameters"]
+            parameters (Float64[jnp.ndarray, " n_circuit_parameters"]):
                 The parameters of the circuit.
 
         Returns:
@@ -144,17 +165,17 @@ class HeisenbergSimulator:
         """Apply a Pauli operator to the circuit.
 
         Args:
-            observables_bits: UInt64[jnp.ndarray, " n_op n_qubits"]
+            observables_bits (UInt64[jnp.ndarray, " n_op n_qubits"]):
                 The bits of the Pauli operators to apply.
-            circuit_bit: UInt64[jnp.ndarray, "1 n_qubits"]
+            circuit_bit (UInt64[jnp.ndarray, "1 n_qubits"]):
                 The bit of the Pauli operator to apply.
-            observables_signs: Complex128[jnp.ndarray, " n_op"]
+            observables_signs (Complex128[jnp.ndarray, " n_op"]):
                 The signs of the Pauli operators to apply.
-            circuit_sign: Complex128[jnp.ndarray, "1 n_qubits"]
+            circuit_sign (Complex128[jnp.ndarray, "1 n_qubits"]):
                 The sign of the Pauli operator to apply.
-            observables_coefficients: Complex128[jnp.ndarray, " n_op"]
+            observables_coefficients (Complex128[jnp.ndarray, " n_op"]):
                 The coefficients of the Pauli operators to apply.
-            parameter: jnp.float64
+            parameter (jnp.float64):
                 The parameter of the circuit.
 
         Returns:
@@ -239,15 +260,15 @@ class HeisenbergSimulator:
         """Multiply the operators in the anticommuting_indices with the operator_bit.
 
         Args:
-            observables_bits: UInt64[jnp.ndarray, "n_op n_qubits"]
+            observables_bits (UInt64[jnp.ndarray, "n_op n_qubits"]):
                 The bits of the Pauli operators to multiply with.
-            operator_bit: UInt64[jnp.ndarray, "1 n_qubits"]
+            operator_bit (UInt64[jnp.ndarray, "1 n_qubits"]):
                 The bit of the operator to multiply with.
-            observables_signs: Complex128[jnp.ndarray, " n_op"]
+            observables_signs (Complex128[jnp.ndarray, " n_op"]):
                 The signs of the Pauli operators to multiply with.
-            operator_sign: Complex128[jnp.ndarray, "1 n_qubits"]
+            operator_sign (Complex128[jnp.ndarray, "1 n_qubits"]):
                 The sign of the operator to multiply with.
-            anticommuting_indices: jnp.ndarray
+            anticommuting_indices (jnp.ndarray):
                 The indices of the operators to multiply with.
 
         Returns:
@@ -300,19 +321,19 @@ class HeisenbergSimulator:
         These include Paulis that are above threshold and don't exist already in self.observable.
 
         Args:
-            observables_bits: UInt64[jnp.ndarray, "n_op n_qubits"]
+            observables_bits (UInt64[jnp.ndarray, "n_op n_qubits"]):
                 The bits of the Pauli operators to add.
-            new_bits: UInt64[jnp.ndarray, "n_op n_qubits"]
+            new_bits (UInt64[jnp.ndarray, "n_op n_qubits"]):
                 The bits of the Pauli operators to add.
-            observables_signs: Complex128[jnp.ndarray, " n_op"]
+            observables_signs (Complex128[jnp.ndarray, " n_op"]):
                 The signs of the Pauli operators to add.
-            new_signs: Complex128[jnp.ndarray, " n_op"]
+            new_signs (Complex128[jnp.ndarray, " n_op"]):
                 The signs of the Pauli operators to add.
-            observables_coefficients: Complex128[jnp.ndarray, " n_op"]
+            observables_coefficients (Complex128[jnp.ndarray, " n_op"]):
                 The coefficients of the Pauli operators to add.
-            new_coeffs: Complex128[jnp.ndarray, " n_op"]
+            new_coeffs (Complex128[jnp.ndarray, " n_op"]):
                 The coefficients of the Pauli operators to add.
-            ind_to_add: UInt64[jnp.ndarray, " n"]
+            ind_to_add (UInt64[jnp.ndarray, " n"]):
                 The indices of the Pauli operators to add.
 
         Returns:
@@ -376,8 +397,8 @@ def a_lt_b(a: jnp.ndarray, b: float) -> jnp.ndarray:
     """Compare absolute values of vector elements with a scalar.
 
     Args:
-        a: Vector input array
-        b: Scalar threshold value
+        a (jnp.ndarray): Vector input array
+        b (float): Scalar threshold value
 
     Returns:
         Boolean array where True indicates |a[i]| < b

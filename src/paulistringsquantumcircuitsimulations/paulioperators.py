@@ -15,7 +15,7 @@ def pack_bits(bool_jnp: Bool[jnp.ndarray, "n_op n_qubits"]) -> UInt64[jnp.ndarra
     """Pack boolean array into uint64 array.
 
     Args:
-        bool_jnp: Bool[jnp.ndarray, "n_op n_qubits"]
+        bool_jnp (Bool[jnp.ndarray, "n_op n_qubits"]):
             The boolean array to pack.
 
     Returns:
@@ -49,9 +49,9 @@ def find_bit_index(
     """Find the indices of the Others Pauli operators in the PauliOperators.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"]
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
             The bits of the Pauli operators to find.
 
     Returns:
@@ -78,9 +78,9 @@ def bits_equal(
     """Compare bits arrays element-wise.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             First bits array.
-        other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"]
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
             Second bits array.
 
     Returns:
@@ -106,19 +106,19 @@ def insert_index(
     """Insert `other_bits` into `bits` at positions `index`, updating `signs` and `coefficients` accordingly.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"]
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
             The bits of the Pauli operators to insert.
-        signs: Complex128[jnp.ndarray, " n_op"]
+        signs (Complex128[jnp.ndarray, " n_op"]):
             The signs of the Pauli operators.
-        other_signs: Complex128[jnp.ndarray, " n_op_others"]
+        other_signs (Complex128[jnp.ndarray, " n_op_others"]):
             The signs of the Pauli operators to insert.
-        coefficients: Complex128[jnp.ndarray, " n_op"]
+        coefficients (Complex128[jnp.ndarray, " n_op"]):
             The coefficients of the Pauli operators.
-        other_coefficients: Complex128[jnp.ndarray, " n_op_others"]
+        other_coefficients (Complex128[jnp.ndarray, " n_op_others"]):
             The coefficients of the Pauli operators to insert.
-        index: UInt64[jnp.ndarray, " n_op_others"]
+        index (UInt64[jnp.ndarray, " n_op_others"]):
             The indices of the Pauli operators to insert.
 
     Returns:
@@ -168,13 +168,13 @@ def delete_index(
     """Delete elements from `bits`, `signs`, `coefficients` at given `index`.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        signs: Complex128[jnp.ndarray, " n_op"]
+        signs (Complex128[jnp.ndarray, " n_op"]):
             The signs of the Pauli operators.
-        coefficients: Complex128[jnp.ndarray, " n_op"]
+        coefficients (Complex128[jnp.ndarray, " n_op"]):
             The coefficients of the Pauli operators.
-        index: UInt64[jnp.ndarray, " n_op_others"]
+        index (UInt64[jnp.ndarray, " n_op_others"]):
             The indices of the Pauli operators to delete.
 
     Returns:
@@ -236,13 +236,13 @@ def new_sign(
     """Update signs of Pauli operators during composition.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the first Pauli operator.
-        other_bit: UInt64[jnp.ndarray, "1 n_packed"]
+        other_bit (UInt64[jnp.ndarray, "1 n_packed"]):
             The bits of the second Pauli operator.
-        signs: Complex128[jnp.ndarray, "n_op"]
+        signs (Complex128[jnp.ndarray, "n_op"]):
             The signs of the first Pauli operator.
-        other_sign: Complex128[jnp.ndarray, " 1"]
+        other_sign (Complex128[jnp.ndarray, " 1"]):
             The sign of the second Pauli operator.
 
     """
@@ -285,15 +285,15 @@ def compose_with(
     """Composes all Paulis in 'self' with the Pauli (only one Pauli allowed) in 'other'.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the first Pauli operator.
-        other_bit: UInt64[jnp.ndarray, "1 n_packed"]
+        other_bit (UInt64[jnp.ndarray, "1 n_packed"]):
             The bit of the second Pauli operator.
-        signs: Complex128[jnp.ndarray, " n_op"]
+        signs (Complex128[jnp.ndarray, " n_op"]):
             The sign of the first Pauli operator.
-        other_sign: Complex128[jnp.ndarray, " 1"]
+        other_sign (Complex128[jnp.ndarray, " 1"]):
             The sign of the second Pauli operator.
-        n_qubits: int
+        n_qubits (int):
             The number of qubits.
 
     Returns:
@@ -326,13 +326,13 @@ def paulioperators_from_strings(
     """Create a PauliOperators from a list of Pauli strings and a list of signs and coefficients.
 
     Args:
-        paulistrings: list[str]
+        paulistrings (list[str]):
             A list of Pauli strings.
-        n_qubits: int
+        n_qubits (int):
             The number of qubits.
-        signs: list[complex]
+        signs (list[complex]):
             The list of signs of the Pauli operators.
-        coefficients: list[complex]
+        coefficients (list[complex]):
             The list of coefficients of the Pauli operators.
 
     Returns:
@@ -389,9 +389,9 @@ def find_paulioperators_indices(
     """Find the indices of the other_bits in the bits.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"]
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
             The bits of the Pauli operators to find the indices of.
 
     Returns:
@@ -411,11 +411,11 @@ def find_paulioperators(
     """Find the indices of the other_bits in the bits.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"]
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
             The bits of the Pauli operators to find.
-        index: UInt64[jnp.ndarray, " n_op_others"] | None
+        index (UInt64[jnp.ndarray, " n_op_others"] | None):
             The indices of the Pauli operators to find.
 
     Returns:
@@ -449,19 +449,19 @@ def insert_paulioperators(
     """Insert paulioperators given by other_bits into bits at index.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"]
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
             The PauliOperators to insert.
-        signs: Complex128[jnp.ndarray, " n_op"]
+        signs (Complex128[jnp.ndarray, " n_op"]):
             The signs of the Pauli operators.
-        other_signs: Complex128[jnp.ndarray, " n_op_others"]
+        other_signs (Complex128[jnp.ndarray, " n_op_others"]):
             The signs of the Pauli operators to insert.
-        coefficients: Complex128[jnp.ndarray, " n_op"]
+        coefficients (Complex128[jnp.ndarray, " n_op"]):
             The coefficients of the Pauli operators.
-        other_coefficients: Complex128[jnp.ndarray, " n_op_others"]
+        other_coefficients (Complex128[jnp.ndarray, " n_op_others"]):
             The coefficients of the Pauli operators to insert.
-        index: UInt64[jnp.ndarray, " n_op_others"]
+        index (UInt64[jnp.ndarray, " n_op_others"]):
             The indices of the Pauli operators to insert.
 
     Returns:
@@ -499,13 +499,13 @@ def delete_paulioperators(
     """Delete the Pauli operators at the given indices.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        signs: Complex128[jnp.ndarray, " n_op"]
+        signs (Complex128[jnp.ndarray, " n_op"]):
             The signs of the Pauli operators.
-        coefficients: Complex128[jnp.ndarray, " n_op"]
+        coefficients (Complex128[jnp.ndarray, " n_op"]):
             The coefficients of the Pauli operators.
-        index: UInt64[jnp.ndarray, " n_op_others"]
+        index (UInt64[jnp.ndarray, " n_op_others"]):
             The indices of the Pauli operators to delete.
 
     Returns:
@@ -534,11 +534,11 @@ def anticommutes(
     """Check if the Pauli operators anticommute.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        other_bit: UInt64[jnp.ndarray, "1 n_packed"]
+        other_bit (UInt64[jnp.ndarray, "1 n_packed"]):
             The bit of the Pauli operator to check if it anticommutes with the Pauli operators in bits.
-        n_qubits: int
+        n_qubits (int):
             The number of qubits.
 
     Returns:
@@ -560,11 +560,11 @@ def ztype(
     """Return logical array indicating whether a Pauli in self is composed only of Z or identity Pauli.
 
     Args:
-        bits: UInt64[jnp.ndarray, "n_op n_packed"]
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
             The bits of the Pauli operators.
-        n_qubits: int
+        n_qubits (int):
             The number of qubits.
-        index: UInt64[jnp.ndarray, " n_op_others"] | None
+        index (UInt64[jnp.ndarray, " n_op_others"] | None):
             The indices of the Pauli operators to check, if needed.
 
     Returns:
