@@ -29,22 +29,27 @@ class Circuit:
     """Represents a quantum circuit.
 
     Args:
-        n (int): The number of qubits in the circuit.
-        instructions (list[QuantumGate]): List of gates to be executed
+        n_qubits (int):
+            The number of qubits in the circuit.
+        instructions (list[Gate]):
+            List of gates to be executed in the circuit.
+            It is optional and be initiallized defaultly to an empty list.
 
     Examples:
-        >>> circuit = Circuit(n=2)
+        >>> circuit = Circuit(n_qubits=2)
         >>> circuit.append(Gate(name="H", targets=[0]))
         >>> circuit.append(Gate(name="CNOT", targets=[0, 1]))
 
     """
 
     def __init__(self, n_qubits: int, instructions: list[Gate] | None = None) -> None:
-        """Initialize an empty quantum circuit.
+        """Initialize a quantum circuit.
 
         Args:
             n_qubits (int): The number of qubits in the circuit.
-            instructions: Optional list of gates to initialize with.
+            instructions (list[Gate]):
+                Optional list of gates to initialize with.
+                It is defaultly initialized to an empty list.
 
         """
         self.n_qubits: int = n_qubits
@@ -69,10 +74,35 @@ class Circuit:
             self.rotation_gate_indices.append(len(self.instructions) - 1)
 
     def get_paulistrings(self) -> tuple[list[PauliString], list[complex]]:
-        """Get the Pauli strings for each rotation gate in the circuit.
+        r"""Get the sequence of pauli strings and their signs for each rotation (magic) gate in the circuit.
+
+        Let us consider the expectation value of the following circuit:
+
+        $$
+            \bra{0} C^{\dagger}_1 U^{\dagger}_1 C^{\dagger}_2 U^{\dagger}_2 \cdots C^{\dagger}_N U^{\dagger}_N
+                \mathcal{O} U_N C_N \cdots U_2 C_2 U_1 C_1 \ket{0}
+        $$
+
+        where $\mathcal{O}$ is a Pauli operator, and $U_i$ and $C_i$ with $i \in [1, N]$
+        are a rotation gate and a Clifford gate, respectively.
+        Note that we can rewrite the above circuit as follows:
+
+        $$
+        \begin{aligned}
+            U_N C_N \cdots U_2 C_2 U_1 C_1 \ket{0} &=
+            U_N C_N \cdots U_2 C_2 C_1 (C^{\dagger}_1 U_1 C_1) \ket{0} \\
+            &= U_N C_N \cdots C_2 C_1 ( C^{\dagger}_1 C^{\dagger}_2 U_2 C_2 C_1) U'_1 \ket{0} \\
+            &= C_N C_{N-1} \cdots C_2 C_1 U'_N \cdots U'_2 U'_1 \ket{0}
+        \end{aligned}
+        $$
+
+        where $U'_i = \left( \prod_{j=1}^{i} C^{\dagger}_j \right) U_i \left( \prod_{j=i}^{1} C_j \right)$.
+
+        Consequently, the sequence of Pauli strings and signs of $U'_i$ for $i \in [1, N]$ are returned.
 
         Returns:
-            list[PauliString]: The Pauli strings for each rotation gate in the circuit.
+            (tuple[list[PauliString], list[complex]]):
+                The sequence of Pauli strings and their signs.
 
         """
         paulistrings: list[PauliString] = []
@@ -109,10 +139,23 @@ class Circuit:
         self,
         paulistrings: list[PauliString],
     ) -> tuple[list[PauliString], list[complex]]:
-        """Transform Pauli strings to Pauli strings after applying Cliffords that are applied in the circuit.
+        r"""Transform Pauli strings after applying all Clifford gates that are applied in the circuit.
+
+        Specifically, it returns
+
+        $$
+            C^{\dagger}_1 C^{\dagger}_2 \cdots C^{\dagger}_N \mathcal{O} C_N \cdots C_2 C_1
+        $$
+
+        where $\mathcal{O}$ is a Pauli operator that are given as input.
+        See the `get_paulistrings` for more details of the transformation.
+
+        Args:
+            paulistrings (list[PauliString]): The Pauli strings to be transformed.
 
         Returns:
-            list[PauliString]: The Pauli strings after applying Cliffords.
+            (tuple[list[PauliString], list[complex]]):
+                The Pauli strings after applying all Clifford gates.
 
         """
         cliffords: list[Gate] = [
@@ -129,21 +172,21 @@ class Circuit:
         ]
 
 
-def gate_to_paulistring(n: int, gate: str, index: list[int]) -> PauliString:
+def gate_to_paulistring(n_qubits: int, gate: str, index: list[int]) -> PauliString:
     """Convert a gate to a PauliString.
 
     Args:
-        n (int): The number of qubits.
+        n_qubits (int): The number of qubits.
         gate (str): The gate to be converted.
         index (int): The index of the qubit to be converted.
 
     Returns:
-        stim.PauliString: The PauliString representation of the gate.
+        (PauliString): The PauliString representation of the gate.
 
     """
     gate_symbols = {"Rx": "X", "Ry": "-iY", "Rz": "Z"}
 
-    pauli_chars: list[str] = ["_"] * n
+    pauli_chars: list[str] = ["_"] * n_qubits
     pauli_chars[index[0]] = gate_symbols.get(gate, "_")
     pauli_str = "".join(pauli_chars)
 
@@ -151,15 +194,6 @@ def gate_to_paulistring(n: int, gate: str, index: list[int]) -> PauliString:
 
 
 def random_single_qubit_clifford_gate(index: int) -> Gate:
-    """Generate a random single-qubit Clifford gate.
-
-    Args:
-        index (int): The index of the qubit to apply the gate to.
-
-    Returns:
-        Gate: A random single-qubit Clifford gate.
-
-    """
     gate_names = [
         "I",
         "X",
