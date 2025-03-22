@@ -552,6 +552,48 @@ def anticommutes(
     return result
 
 
+def overlap(
+    bits: UInt64[jnp.ndarray, "n_op n_packed"],
+    other_bits: UInt64[jnp.ndarray, "n_op_others n_packed"],
+    signs: Complex128[jnp.ndarray, " n_op"],
+    other_signs: Complex128[jnp.ndarray, " n_op_others"],
+    coefficients: Complex128[jnp.ndarray, " n_op"],
+    other_coefficients: Complex128[jnp.ndarray, " n_op_others"],
+) -> Complex128[jnp.ndarray, " n_op_others"]:
+    """Compute overlap of two Pauli sums as Tr[B^dag A] / N, where N is a normalization factor.
+
+    Bits (A) and other (B) are both PauliRepresentation objects.
+
+    Args:
+        bits (UInt64[jnp.ndarray, "n_op n_packed"]):
+            The bits of the Pauli operators.
+        other_bits (UInt64[jnp.ndarray, "n_op_others n_packed"]):
+            The bits of the Pauli operators to compute the overlap with.
+        signs (Complex128[jnp.ndarray, " n_op"]):
+            The signs of the Pauli operators.
+        other_signs (Complex128[jnp.ndarray, " n_op_others"]):
+            The signs of the Pauli operators to compute the overlap with.
+        coefficients (Complex128[jnp.ndarray, " n_op"]):
+            The coefficients of the Pauli operators.
+        other_coefficients (Complex128[jnp.ndarray, " n_op_others"]):
+            The coefficients of the Pauli operators to compute the overlap with.
+
+    Returns:
+        Complex128[jnp.ndarray, " n_op_others"]:
+            The overlap of the Pauli operators.
+
+    """
+    index = find_paulioperators_indices(bits, other_bits)
+    pauli_found = find_paulioperators(bits, other_bits, index=index)
+    index_found = index[pauli_found]
+    return jnp.sum(
+        coefficients[index_found]
+        * jnp.conj(other_coefficients[pauli_found])
+        * signs[index_found]
+        / other_signs[pauli_found]
+    )
+
+
 def ztype(
     bits: UInt64[jnp.ndarray, "n_op n_packed"],
     n_qubits: int,

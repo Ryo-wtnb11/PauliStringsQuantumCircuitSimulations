@@ -184,7 +184,7 @@ def gate_to_paulistring(n_qubits: int, gate: str, index: list[int]) -> PauliStri
         (PauliString): The PauliString representation of the gate.
 
     """
-    gate_symbols = {"Rx": "X", "Ry": "-iY", "Rz": "Z"}
+    gate_symbols = {"Rx": "X", "Ry": "iY", "Rz": "Z"}
 
     pauli_chars: list[str] = ["_"] * n_qubits
     pauli_chars[index[0]] = gate_symbols.get(gate, "_")

@@ -22,7 +22,7 @@ def test_heisenberg_simulator() -> None:
 
     for c in [2, -2, 4, -4, 8, -8, 8 / 5, -8 / 5]:
         paulistrings = ["X", "Z"]
-        simulator = HeisenbergSimulator(
+        simulator = HeisenbergSimulator.init_circuit(
             circuit=circuit,
             paulistrings=paulistrings,
             n_qubits=n,
@@ -67,7 +67,7 @@ def test_heisenberg_simulator_including_clifford_gates() -> None:
     circuit.append(Gate(name="H", targets=[0]))
 
     paulistrings = ["X", "Z"]
-    simulator = HeisenbergSimulator(
+    simulator = HeisenbergSimulator.init_circuit(
         circuit=circuit,
         paulistrings=paulistrings,
         n_qubits=n,

@@ -1,4 +1,5 @@
 import copy
+from typing import Self
 
 import jax
 import jax.numpy as jnp
@@ -46,48 +47,89 @@ class HeisenbergSimulator:
         circuit (Circuit): The circuit to simulate.
         paulistrings (list[PauliString]): The Pauli strings to simulate.
         n_qubits (int): The number of qubits in the circuit.
-        coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None)
-            : The coefficients of the Pauli strings.
+        coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None):
+            The coefficients of the Pauli strings.
         threshold (float): The threshold for the Pauli strings.
 
     """
 
     def __init__(
         self,
-        circuit: Circuit,
-        paulistrings: list[PauliString],
         n_qubits: int,
-        coefficients: Complex128[jnp.ndarray, " n_op"] | list[complex] | None = None,
-        threshold: float = 0.01,
+        operator_bit_list: list[UInt64[jnp.ndarray, "1 n_qubits"]],
+        operator_sign_list: list[Complex128[jnp.ndarray, "1 n_qubits"]],
+        observables_bits: UInt64[jnp.ndarray, " n_op n_qubits"],
+        observables_signs: Complex128[jnp.ndarray, " n_op"],
+        observables_coefficients: Complex128[jnp.ndarray, " n_op"],
+        operator_real_coefficients: Float64[jnp.ndarray, " n_circuit_parameters"],
+        threshold: float = 0.0,
     ) -> None:
         """Initialize the HeisenbergSimulator.
+
+        Args:
+            n_qubits (int): The number of qubits in the circuit.
+            operator_bit_list (list[UInt64[jnp.ndarray, "1 n_qubits"]]): The bits of the operators.
+            operator_sign_list (list[Complex128[jnp.ndarray, "1 n_qubits"]]): The signs of the operators.
+            operator_coefficients (list[Complex128[jnp.ndarray, " n_op"]]): The coefficients of the operators.
+            observables_bits (UInt64[jnp.ndarray, " n_op n_qubits"]): The bits of the observables.
+            observables_signs (Complex128[jnp.ndarray, " n_op"]): The signs of the observables.
+            observables_coefficients (Complex128[jnp.ndarray, " n_op"]): The coefficients of the observables.
+            operator_real_coefficients (Float64[jnp.ndarray, " n_circuit_parameters"]):
+                The real coefficients of the operators.
+                Note that `n_circuit_parameters` corresponds to the length of `operator_bit_list` and
+                `operator_sign_list`.
+            threshold (float): The threshold for the Pauli strings.
+
+        """
+        self.n_qubits = n_qubits
+        self.operator_bit_list = operator_bit_list
+        self.operator_sign_list = operator_sign_list
+        self.observables_bits = observables_bits
+        self.observables_signs = observables_signs
+        self.observables_coefficients = observables_coefficients
+        self.operator_real_coefficients = operator_real_coefficients
+        self.threshold = threshold
+
+    @classmethod
+    def init_circuit(
+        cls,
+        n_qubits: int,
+        circuit: Circuit,
+        paulistrings: list[PauliString],
+        coefficients: Complex128[jnp.ndarray, " n_op"] | list[complex] | None = None,
+        threshold: float = 0.0,
+    ) -> Self:
+        """Initialize the HeisenbergSimulator from a circuit.
 
         Args:
             circuit (Circuit): The circuit to simulate.
             paulistrings (list[PauliString]): The Pauli strings to simulate.
             n_qubits (int): The number of qubits in the circuit.
-            coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None)
-                :The coefficients of the Pauli strings.
+            coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None):
+                The coefficients of the Pauli strings.
             threshold (float): The threshold for the Pauli strings.
+
+        Returns:
+            HeisenbergSimulator: The Heisenberg simulator.
 
         """
         if n_qubits != circuit.n_qubits:
             raise SystemSizeError(n_qubits, circuit.n_qubits)
 
-        self.n_qubits = n_qubits
-
         circuit_paulistrings, circuit_signs = circuit.get_paulistrings()
 
-        self.circuit_bit_list: list[UInt64[jnp.ndarray, "1 n_qubits"]] = []
-        self.circuit_sign_list: list[Complex128[jnp.ndarray, "1 n_qubits"]] = []
+        operator_bit_list: list[UInt64[jnp.ndarray, "1 n_qubits"]] = []
+        operator_sign_list: list[Complex128[jnp.ndarray, "1 n_qubits"]] = []
         for i in range(len(circuit_paulistrings)):
             circuit_bit, circuit_sign, _ = paulioperators_from_strings(
                 paulistrings=[circuit_paulistrings[i]],
                 signs=jnp.array([circuit_signs[i]], dtype=jnp.complex128),
-                n_qubits=self.n_qubits,
+                n_qubits=n_qubits,
             )
-            self.circuit_bit_list.append(circuit_bit)
-            self.circuit_sign_list.append(circuit_sign)
+            operator_bit_list.append(circuit_bit)
+            operator_sign_list.append(circuit_sign)
+
+        operator_real_coefficients = jnp.ones(len(circuit_paulistrings), dtype=jnp.float64)
 
         paulistrings, signs = circuit.transform_paulistrings(
             paulistrings=paulistrings,
@@ -99,13 +141,81 @@ class HeisenbergSimulator:
             coefficients=coefficients,
             n_qubits=n_qubits,
         )
-        self.observables_bits, self.observables_signs, self.observables_coefficients = order_paulioperators(
+        observables_bits, observables_signs, observables_coefficients = order_paulioperators(
+            bits=observables_bits,
+            signs=observables_signs,
+            coefficients=observables_coefficients,
+        )
+        return cls(
+            n_qubits=n_qubits,
+            operator_bit_list=operator_bit_list,
+            operator_sign_list=operator_sign_list,
+            observables_bits=observables_bits,
+            observables_signs=observables_signs,
+            observables_coefficients=observables_coefficients,
+            operator_real_coefficients=operator_real_coefficients,
+            threshold=threshold,
+        )
+
+    @classmethod
+    def init_real_dynamics(
+        cls,
+        n_qubits: int,
+        operator_paulistrings: list[PauliString],
+        operator_real_coefficients: Float64[jnp.ndarray, " n_circuit_parameters"],
+        paulistrings: list[PauliString],
+        coefficients: Complex128[jnp.ndarray, " n_op"] | list[complex] | None = None,
+        threshold: float = 0.0,
+    ) -> Self:
+        """Initialize the HeisenbergSimulator from a real Hamiltonian.
+
+        Args:
+            n_qubits (int): The number of qubits in the circuit.
+            operator_paulistrings (list[PauliString]): The Pauli strings of the operators.
+            operator_real_coefficients (Float64[jnp.ndarray, " n_circuit_parameters"]):
+                The real coefficients of the operators.
+                Note that `n_circuit_parameters` corresponds to the length of `operator_paulistrings`.
+            paulistrings (list[PauliString]): The Pauli strings of the observables.
+            coefficients (Complex128[jnp.ndarray, " n_op"] | list[complex] | None):
+                The coefficients of the observables.
+            threshold (float): The threshold for the Pauli strings.
+
+        Returns:
+            HeisenbergSimulator: The Heisenberg simulator.
+
+        """
+        operator_bit_list: list[UInt64[jnp.ndarray, "1 n_qubits"]] = []
+        operator_sign_list: list[Complex128[jnp.ndarray, "1 n_qubits"]] = []
+        for i in range(len(operator_paulistrings)):
+            circuit_bit, circuit_sign, _ = paulioperators_from_strings(
+                paulistrings=[operator_paulistrings[i]],
+                n_qubits=n_qubits,
+            )
+            operator_bit_list.append(circuit_bit)
+            operator_sign_list.append(circuit_sign)
+
+        observables_bits, observables_signs, observables_coefficients = paulioperators_from_strings(
+            paulistrings=paulistrings,
+            coefficients=coefficients,
+            n_qubits=n_qubits,
+        )
+
+        observables_bits, observables_signs, observables_coefficients = order_paulioperators(
             bits=observables_bits,
             signs=observables_signs,
             coefficients=observables_coefficients,
         )
 
-        self.threshold = threshold
+        return cls(
+            n_qubits=n_qubits,
+            operator_bit_list=operator_bit_list,
+            operator_sign_list=operator_sign_list,
+            observables_bits=observables_bits,
+            observables_signs=observables_signs,
+            observables_coefficients=observables_coefficients,
+            operator_real_coefficients=operator_real_coefficients,
+            threshold=threshold,
+        )
 
     def run(
         self,
@@ -121,8 +231,8 @@ class HeisenbergSimulator:
             jnp.float64: The expectation value of the observables.
 
         """
-        if parameters.shape[0] != len(self.circuit_bit_list):
-            raise InvalidParameterError(len(self.circuit_bit_list), parameters.shape[0])
+        if parameters.shape[0] != len(self.operator_bit_list):
+            raise InvalidParameterError(len(self.operator_bit_list), parameters.shape[0])
 
         observables_bits, observables_signs, observables_coefficients = (
             copy.deepcopy(self.observables_bits),
@@ -132,9 +242,9 @@ class HeisenbergSimulator:
         for i in range(parameters.shape[0]):
             observables_bits, observables_signs, observables_coefficients = self.apply_pauli_operator(
                 observables_bits=observables_bits,
-                circuit_bit=self.circuit_bit_list[i],
+                operator_bit=self.operator_bit_list[i],
                 observables_signs=observables_signs,
-                circuit_sign=self.circuit_sign_list[i],
+                operator_sign=self.operator_sign_list[i],
                 observables_coefficients=observables_coefficients,
                 parameter=parameters[i],
             )
@@ -152,9 +262,9 @@ class HeisenbergSimulator:
     def apply_pauli_operator(
         self,
         observables_bits: UInt64[jnp.ndarray, " n_op n_qubits"],
-        circuit_bit: UInt64[jnp.ndarray, "1 n_qubits"],
+        operator_bit: UInt64[jnp.ndarray, "1 n_qubits"],
         observables_signs: Complex128[jnp.ndarray, " n_op"],
-        circuit_sign: Complex128[jnp.ndarray, "1 n_qubits"],
+        operator_sign: Complex128[jnp.ndarray, "1 n_qubits"],
         observables_coefficients: Complex128[jnp.ndarray, " n_op"],
         parameter: jnp.float64,
     ) -> tuple[
@@ -167,11 +277,11 @@ class HeisenbergSimulator:
         Args:
             observables_bits (UInt64[jnp.ndarray, " n_op n_qubits"]):
                 The bits of the Pauli operators to apply.
-            circuit_bit (UInt64[jnp.ndarray, "1 n_qubits"]):
+            operator_bit (UInt64[jnp.ndarray, "1 n_qubits"]):
                 The bit of the Pauli operator to apply.
             observables_signs (Complex128[jnp.ndarray, " n_op"]):
                 The signs of the Pauli operators to apply.
-            circuit_sign (Complex128[jnp.ndarray, "1 n_qubits"]):
+            operator_sign (Complex128[jnp.ndarray, "1 n_qubits"]):
                 The sign of the Pauli operator to apply.
             observables_coefficients (Complex128[jnp.ndarray, " n_op"]):
                 The coefficients of the Pauli operators to apply.
@@ -190,16 +300,16 @@ class HeisenbergSimulator:
         anticommuting = jnp.where(
             anticommutes(
                 self.observables_bits,
-                circuit_bit,
+                operator_bit,
                 self.n_qubits,
             ),
         )[0]
         if len(anticommuting):
             new_bits, new_signs, pauli_indices, pauli_in_observables = self.multiply_operators(
                 observables_bits=observables_bits,
-                operator_bit=circuit_bit,
+                operator_bit=operator_bit,
                 observables_signs=observables_signs,
-                operator_sign=circuit_sign,
+                operator_sign=operator_sign,
                 anticommuting_indices=anticommuting,
             )
             coeffs_sin: jnp.ndarray = observables_coefficients[anticommuting]
@@ -388,25 +498,19 @@ def update_coeffs(
     index_anticommuting: UInt64[jnp.ndarray, " n_anticommuting"],
     index_exists: Bool[jnp.ndarray, " n_op_new"],
 ) -> Complex128[jnp.ndarray, " n_op"]:
-    tmp = coeffs2 * (index_exists * (1j) * s * new_signs / signs)
+    tmp = coeffs2 * (index_exists * (1j) * s * signs / new_signs)
     return coeffs1.at[index_anticommuting].set(coeffs1.at[index_anticommuting].get() * c + tmp)
 
 
 @jax.jit
-def a_lt_b(a: jnp.ndarray, b: float) -> jnp.ndarray:
-    """Compare absolute values of vector elements with a scalar.
-
-    Args:
-        a (jnp.ndarray): Vector input array
-        b (float): Scalar threshold value
-
-    Returns:
-        Boolean array where True indicates |a[i]| < b
-
-    """
-    return jnp.abs(a) < b
+def a_lt_b(a: Complex128[jnp.ndarray, " n_op"], b: jnp.float64) -> Bool[jnp.ndarray, " n_op"]:
+    result: Bool[jnp.ndarray, " n_op"] = jnp.abs(a) < b
+    return result
 
 
 @jax.jit
-def a_gt_b_and_not_c(a: jnp.ndarray, b: float, c: jnp.ndarray) -> jnp.ndarray:
-    return (jnp.abs(a) >= b) & ~c
+def a_gt_b_and_not_c(
+    a: Complex128[jnp.ndarray, " n_op"], b: jnp.float64, c: Bool[jnp.ndarray, " n_op"]
+) -> Bool[jnp.ndarray, " n_op"]:
+    result: Bool[jnp.ndarray, " n_op"] = (jnp.abs(a) >= b) & ~c
+    return result
