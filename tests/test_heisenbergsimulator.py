@@ -30,7 +30,7 @@ def test_heisenberg_simulator() -> None:
         parameters = jnp.pi / c
 
         theta: jnp.ndarray = jnp.array([parameters], dtype=jnp.float64)
-        exp = simulator.run(theta)
+        exp = simulator.run_circuit(theta)
 
         stim_x = stim.PauliString("X")
         stim_z = stim.PauliString("Z")
@@ -75,7 +75,7 @@ def test_heisenberg_simulator_including_clifford_gates() -> None:
 
     parameters = jnp.pi / 8
     theta: jnp.ndarray = jnp.array([parameters], dtype=jnp.float64)
-    exp = simulator.run(theta)
+    exp = simulator.run_circuit(theta)
 
     stim_x = stim.PauliString("X")
     stim_z = stim.PauliString("Z")

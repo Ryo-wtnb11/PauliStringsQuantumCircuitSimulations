@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import stim
 
 from paulistringsquantumcircuitsimulations.exceptions import CircuitSystemSizeError
-from paulistringsquantumcircuitsimulations.paulioperators import PauliString
+from paulistringsquantumcircuitsimulations.utils import PauliString
 
 
 @dataclass

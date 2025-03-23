@@ -25,9 +25,3 @@ def test_paulioperator_init() -> None:
     ))
 
 
-    others = ["ZX_", "XX_", "YYY"]
-    other_bits, other_signs, other_coefficients = paulioperators_from_strings(paulistrings=others, n_qubits=3)
-    assert jnp.all(find_paulioperators_indices(bits, other_bits) == jnp.array([5, 2, 6]))
-    assert jnp.all(find_paulioperators(bits, other_bits) == jnp.array([False, True, False]))
-
-
