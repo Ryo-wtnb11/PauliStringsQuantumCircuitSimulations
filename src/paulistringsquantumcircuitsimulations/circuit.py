@@ -4,7 +4,13 @@ from dataclasses import dataclass
 import stim
 
 from paulistringsquantumcircuitsimulations.exceptions import CircuitSystemSizeError
-from paulistringsquantumcircuitsimulations.utils import PauliString
+from paulistringsquantumcircuitsimulations.paulioperators import PauliString
+
+# Phase constants
+PHASE_ONE = 1
+PHASE_MINUS_I = -1j
+PHASE_MINUS_ONE = -1
+PHASE_I = 1j
 
 
 @dataclass
@@ -73,7 +79,7 @@ class Circuit:
         if gate.name in ["Rx", "Ry", "Rz"]:
             self.rotation_gate_indices.append(len(self.instructions) - 1)
 
-    def get_paulistrings(self) -> tuple[list[PauliString], list[complex]]:
+    def get_paulistrings(self) -> tuple[list[PauliString], list[int]]:
         r"""Get the sequence of pauli strings and their signs for each rotation (magic) gate in the circuit.
 
         Let us consider the expectation value of the following circuit:
@@ -106,7 +112,7 @@ class Circuit:
 
         """
         paulistrings: list[PauliString] = []
-        signs: list[complex] = []
+        phases: list[int] = []
 
         current_cliffords: list[Gate] = []
         last_rot_idx: int = 0
@@ -130,15 +136,24 @@ class Circuit:
 
             pauli_stim = stim.PauliString(pauli).before(circuit)
             paulistrings.append(str(pauli_stim)[-self.n_qubits :])
-            signs.append(pauli_stim.sign)
+            c: int = 0
+            if pauli_stim.sign == PHASE_ONE:
+                c = 0
+            elif pauli_stim.sign == PHASE_MINUS_I:
+                c = 1
+            elif pauli_stim.sign == PHASE_MINUS_ONE:
+                c = 2
+            elif pauli_stim.sign == PHASE_I:
+                c = 3
+            phases.append(c)
             last_rot_idx = rot_idx + 1
 
-        return paulistrings, signs
+        return paulistrings, phases
 
     def transform_paulistrings(
         self,
         paulistrings: list[PauliString],
-    ) -> tuple[list[PauliString], list[complex]]:
+    ) -> tuple[list[PauliString], list[int]]:
         r"""Transform Pauli strings after applying all Clifford gates that are applied in the circuit.
 
         Specifically, it returns
@@ -167,9 +182,20 @@ class Circuit:
             circuit.append(gate.name, gate.targets)
 
         paulistrings_stim = [stim.PauliString(pauli).before(circuit) for pauli in paulistrings]
-        return [str(pauli)[-self.n_qubits :] for pauli in paulistrings_stim], [
-            pauli.sign for pauli in paulistrings_stim
-        ]
+
+        paulistrings_str: list[str] = []
+        phases: list[int] = []
+        for pauli in paulistrings_stim:
+            paulistrings_str.append(str(pauli)[-self.n_qubits :])
+            if pauli.sign == PHASE_ONE:
+                phases.append(0)
+            elif pauli.sign == PHASE_MINUS_I:
+                phases.append(1)
+            elif pauli.sign == PHASE_MINUS_ONE:
+                phases.append(2)
+            elif pauli.sign == PHASE_I:
+                phases.append(3)
+        return paulistrings_str, phases
 
 
 def gate_to_paulistring(n_qubits: int, gate: str, index: list[int]) -> PauliString:
@@ -184,7 +210,7 @@ def gate_to_paulistring(n_qubits: int, gate: str, index: list[int]) -> PauliStri
         (PauliString): The PauliString representation of the gate.
 
     """
-    gate_symbols = {"Rx": "X", "Ry": "iY", "Rz": "Z"}
+    gate_symbols = {"Rx": "X", "Ry": "-iY", "Rz": "Z"}
 
     pauli_chars: list[str] = ["_"] * n_qubits
     pauli_chars[index[0]] = gate_symbols.get(gate, "_")

@@ -1,158 +1,175 @@
-import jax
-import jax.numpy as jnp
-from jaxtyping import Bool, Complex128, Int64, UInt64
-
-PauliString = str
+import numpy as np
+from jaxtyping import Bool, Int32, UInt32
+from numba import njit, prange
 
 
-def anticommutation(
-    bits: UInt64[jnp.ndarray, "n_op n_packed"],
-    other_bit: UInt64[jnp.ndarray, "1 n_packed"],
-) -> UInt64[jnp.ndarray, " n_op"]:
-    return jax.vmap(lambda row: jnp.mod(count_nonzero(jnp.bitwise_and(row, other_bit[0])), 2))(bits)
+@njit(fastmath=True)  # type: ignore [misc]
+def pack_bits(
+    bits: Bool[np.ndarray, " n_operators n_bits"],
+) -> UInt32[np.ndarray, " n_operators n_packed"]:
+    n_operators, n_bits = bits.shape
+    packed_bits: UInt32[np.ndarray, " n_operators n_packed"] = np.zeros(
+        (n_operators, (n_bits + 31) // 32), dtype=np.uint32
+    )
+    for i in range(n_operators):
+        for j in range(n_bits):
+            packed_bits[i, j // 32] |= bits[i, j] << (j % 32)
+    return packed_bits
 
 
-def bits_equal(
-    bits: UInt64[jnp.ndarray, "n_op 2n_packed"],
-    other_bits: UInt64[jnp.ndarray, "n_op_others 2n_packed"],
-) -> Bool[jnp.ndarray, " n_op_others"]:
-    """Compare bits arrays element-wise.
-
-    Args:
-        bits (UInt64[jnp.ndarray, "n_op 2n_packed"]):
-            First bits array.
-        other_bits (UInt64[jnp.ndarray, "n_op_others 2n_packed"]):
-            Second bits array.
-
-    Returns:
-        Bool[jnp.ndarray, "n_op_others"]: Boolean array indicating where bits are equal.
-
-    """
-    return jnp.all(bits == other_bits, axis=1)
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def update_phase(
+    bits: UInt32[np.ndarray, " n_operators n_packed"],
+    other_bit: UInt32[np.ndarray, " 1 n_packed"],
+    phases: Int32[np.ndarray, " n_operators"],
+    other_phase: Int32[np.ndarray, " 1"],
+) -> Int32[np.ndarray, " n_operators"]:
+    n_operators = bits.shape[0]
+    res = np.zeros(n_operators)
+    for i in prange(n_operators):
+        res[i] = phases[i] + other_phase[0] + 2 * count_nonzero(np.bitwise_and(bits[i], other_bit[0]))
+    return res
 
 
-def count_nonzero(bits: UInt64[jnp.ndarray, "n_op n_packed"]) -> jnp.uint64:
-    """Count the total number of set bits in `bits`."""
-    return jnp.sum(jax.vmap(count_set_bits)(bits))
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def insert_index_bits_and_phases(
+    bits: UInt32[np.ndarray, " n_operators n_packed"],
+    other_bits: UInt32[np.ndarray, " n_other_operators n_packed"],
+    phases: Int32[np.ndarray, " n_operators"],
+    other_phases: Int32[np.ndarray, " n_other_operators"],
+    index: UInt32[np.ndarray, " n_other_operators"],
+) -> tuple[UInt32[np.ndarray, " new_n_operators n_packed"], Int32[np.ndarray, " new_n_operators"]]:
+    n_operators, two_n_packed = bits.shape
+    n_other_operators, _ = other_bits.shape
+    new_size = n_operators + n_other_operators
+    res = np.empty((new_size, two_n_packed), dtype=np.uint32)
+    res_p = np.empty(new_size, dtype=np.int32)
+    ind = index + np.arange(len(index))
+    res[: ind[0]] = bits[: index[0]]
+    res_p[: ind[0]] = phases[: index[0]]
+    for i in prange(len(ind)):
+        res[ind[i]] = other_bits[i]
+        res_p[ind[i]] = other_phases[i]
+        if i == len(ind) - 1:
+            u = new_size
+            ua = n_operators
+        else:
+            u = ind[i + 1]
+            ua = index[i + 1]
+        res[ind[i] + 1 : u] = bits[index[i] : ua]
+        res_p[ind[i] + 1 : u] = phases[index[i] : ua]
+    return res, res_p
 
 
-def find_bit_index(
-    bits: UInt64[jnp.ndarray, "n_op 2n_packed"],
-    other_bits: UInt64[jnp.ndarray, "n_op_others 2n_packed"],
-) -> UInt64[jnp.ndarray, " n_op_others"]:
-    """Find the indices of the Others Pauli operators in the PauliOperators.
-
-    Args:
-        bits (UInt64[jnp.ndarray, "n_op 2n_packed"]):
-            The bits of the Pauli operators.
-        other_bits (UInt64[jnp.ndarray, "n_op_others 2n_packed"]):
-            The bits of the Pauli operators to find.
-
-    Returns:
-        UInt64[jnp.ndarray, " n_op_others"]: The indices of the Others Pauli operators in the PauliOperators.
-
-    """
-    (n_op, n_packed) = bits.shape
-    (n_op_others, _) = other_bits.shape
-
-    def search_single(other: UInt64[jnp.ndarray, " 2n_packed"]) -> UInt64[jnp.ndarray, " 1"]:
-        """Find the first index where `bits` is greater than or equal to `other`."""
-        mask = jnp.all(bits >= other, axis=1)
-        valid_rows = jnp.where(mask, jnp.arange(n_op), n_op)
-        return jnp.min(valid_rows)
-
-    return jax.vmap(search_single, in_axes=[0])(other_bits)
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def delete_index_bits_and_phases(
+    bits: UInt32[np.ndarray, " n_operators n_packed"],
+    phases: Int32[np.ndarray, " n_operators"],
+    index: UInt32[np.ndarray, " n_other_operators"],
+) -> tuple[UInt32[np.ndarray, " new_n_operators n_packed"], Int32[np.ndarray, " new_n_operators"]]:
+    n_operators, two_n_packed = bits.shape
+    new_size = n_operators - len(index)
+    res = np.empty((new_size, two_n_packed), dtype=np.uint32)
+    res_p = np.empty(new_size, dtype=np.int32)
+    mask = np.ones(n_operators, dtype=np.bool_)
+    mask[index] = False
+    ind = np.nonzero(mask)[0]
+    for i in prange(len(ind)):
+        res[i] = bits[ind[i]]
+        res_p[i] = phases[ind[i]]
+    return res, res_p
 
 
-def new_sign(
-    bits: UInt64[jnp.ndarray, "n_op n_packed"],
-    other_bit: UInt64[jnp.ndarray, "1 n_packed"],
-    signs: Complex128[jnp.ndarray, " n_op"],
-    other_sign: Complex128[jnp.ndarray, " 1"],
-) -> Complex128[jnp.ndarray, " n_op"]:
-    """Update signs of Pauli operators during composition.
-
-    Args:
-        bits (UInt64[jnp.ndarray, "n_op 2n_packed"]):
-            The bits of the first Pauli operator.
-        other_bit (UInt64[jnp.ndarray, "1 2n_packed"]):
-            The bits of the second Pauli operator.
-        signs (Complex128[jnp.ndarray, "n_op"]):
-            The signs of the first Pauli operator.
-        other_sign (Complex128[jnp.ndarray, " 1"]):
-            The sign of the second Pauli operator.
-
-    """
-
-    def compute_sign(
-        row: UInt64[jnp.ndarray, " n_packed"],
-        s1: jnp.complex128,
-    ) -> jnp.complex128:
-        n_common = jnp.count_nonzero(jnp.bitwise_and(row, other_bit[0]))
-        return s1 * other_sign * ((-1j) ** (2 * n_common))
-
-    result: Complex128[jnp.ndarray, " n_op"] = jax.vmap(compute_sign, in_axes=[0, 0])(bits, signs).flatten()
-    return result
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def count_nonzero(
+    bits_and_other_bits: Int32[np.ndarray, " n_packed"],
+) -> int:
+    s: int = 0
+    for i in range(len(bits_and_other_bits)):
+        s += count_set_bits(bits_and_other_bits[i])
+    return s
 
 
-def not_equal(
-    bits: UInt64[jnp.ndarray, " n_op"],
-    other_bits: UInt64[jnp.ndarray, " n_op"],
-) -> Bool[jnp.ndarray, " n_op"]:
-    result: Bool[jnp.ndarray, " n_op"] = bits != other_bits
-    return result
+@njit(fastmath=True)  # type: ignore [misc]
+def count_set_bits(x: int) -> int:
+    x = x - ((x >> 1) & 0x5555555555555555)
+    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333)
+    x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F
+    x = x + (x >> 8)
+    x = x + (x >> 16)
+    x = x + (x >> 32)
+    return int(x & 0x7F)
 
 
+@njit(fastmath=True)  # type: ignore [misc]
 def xor(
-    bits: UInt64[jnp.ndarray, "n_op 2n_packed"],
-    other_bit: UInt64[jnp.ndarray, "1 2n_packed"],
-) -> UInt64[jnp.ndarray, " n_op 2n_packed"]:
-    return jnp.bitwise_xor(bits, other_bit)
+    bits: Int32[np.ndarray, " n_operators n_packed"],
+    other_bit: Int32[np.ndarray, " 1 n_packed"],
+) -> Int32[np.ndarray, " n_operators n_packed"]:
+    return np.bitwise_xor(bits, other_bit[0, :])
 
 
-def pack_bits(bool_jnp: Bool[jnp.ndarray, "n_op n_qubits"]) -> UInt64[jnp.ndarray, "n_op n_packed"]:
-    """Pack boolean array into uint64 array.
-
-    Args:
-        bool_jnp (Bool[jnp.ndarray, "n_op n_qubits"]):
-            The boolean array to pack.
-
-    Returns:
-        UInt64[jnp.ndarray, "n_op n_packed"]: The packed boolean array.
-
-    """
-    (n_op, n_qubits) = bool_jnp.shape
-    n_packed = (n_qubits + 63) // 64
-    res = jnp.zeros((n_op, n_packed), dtype=jnp.uint64)
-
-    blocks = jnp.arange(n_qubits) // 64
-    positions = jnp.arange(n_qubits) % 64
-
-    bit_values = (bool_jnp * (1 << positions)).astype(jnp.uint64)
-
-    def update_row(
-        res_row: Bool[jnp.ndarray, " n_packed"],
-        bit_row: Bool[jnp.ndarray, " n_qubits"],
-        blocks: Int64[jnp.ndarray, " n_qubits"],
-    ) -> Bool[jnp.ndarray, " n_packed"]:
-        return res_row.at[blocks].add(bit_row)
-
-    return jax.vmap(update_row, in_axes=[0, 0, None])(res, bit_values, blocks)
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def anticommutation(
+    bits: UInt32[np.ndarray, " n_operators n_packed"],
+    other_bit: UInt32[np.ndarray, " 1 n_packed"],
+) -> UInt32[np.ndarray, " n_operators"]:
+    n_operators, n_packed = bits.shape
+    res = np.empty(n_operators, dtype=np.int16)
+    for i in prange(n_operators):
+        res[i] = np.mod(count_nonzero(np.bitwise_and(bits[i, :], other_bit[0, :])), 2)
+    return res
 
 
-def ztype_bool(
-    bits: UInt64[jnp.ndarray, "n_op n_packed"],
-) -> Bool[jnp.ndarray, " n_op"]:
-    return jnp.logical_not(jnp.any(bits, axis=1))
+@njit  # type: ignore [misc]
+def not_equal(
+    a: UInt32[np.ndarray, " n_operators"],
+    b: UInt32[np.ndarray, " n_operators"],
+) -> Bool[np.ndarray, " n_operators"]:
+    res: Bool[np.ndarray, " n_operators"] = a != b
+    return res
 
 
-@jax.jit
-def count_set_bits(n: jnp.uint64) -> jnp.uint32:
-    """Count the number of set bits in a 64-bit integer using bitwise operations."""
-    n = n - ((n >> 1) & 0x5555555555555555)
-    n = (n & 0x3333333333333333) + ((n >> 2) & 0x3333333333333333)
-    n = (n + (n >> 4)) & 0x0F0F0F0F0F0F0F0F
-    n = n + (n >> 8)
-    n = n + (n >> 16)
-    n = n + (n >> 32)
-    return n & 0x7F
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def bits_equal(
+    bits: UInt32[np.ndarray, " n_operators n_packed"],
+    other_bits: UInt32[np.ndarray, " n_other_operators n_packed"],
+) -> Bool[np.ndarray, " n_other_operators"]:
+    n_other_operators, _ = other_bits.shape
+    res = np.empty(n_other_operators, dtype=np.bool_)
+    for i in prange(n_other_operators):
+        res[i] = np.all(bits[i, :] == other_bits[i, :])
+    return res
+
+
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def bits_equal_index(
+    bits: UInt32[np.ndarray, " n_operators n_packed"],
+    other_bits: UInt32[np.ndarray, " n_other_operators n_packed"],
+    index: UInt32[np.ndarray, " n_other_operators"],
+) -> Bool[np.ndarray, " n_other_operators"]:
+    n_other_operators, n_packed = other_bits.shape
+    res = np.empty(n_other_operators, dtype=np.bool_)
+    for i in prange(n_other_operators):
+        res[i] = ~np.any(bits[index[i], :] != other_bits[i, :])
+    return res
+
+
+@njit(parallel=True, fastmath=True)  # type: ignore [misc]
+def find_bit_index(
+    bits: UInt32[np.ndarray, " n_operators 2n_packed"],
+    other_bits: UInt32[np.ndarray, " n_other_operators 2n_packed"],
+) -> UInt32[np.ndarray, " n_other_operators"]:
+    n_operators, _ = bits.shape
+    n_other_operators, two_n_packed = other_bits.shape
+    lower = np.repeat(0, n_other_operators)
+    upper = np.repeat(n_operators, n_other_operators)
+    for j in prange(n_other_operators):
+        for i in range(two_n_packed):
+            if upper[j] == lower[j]:
+                break
+            lower[j] = lower[j] + np.searchsorted(bits[lower[j] : upper[j], i], other_bits[j, i], side="left")
+            upper[j] = lower[j] + np.searchsorted(
+                bits[lower[j] : upper[j], i], other_bits[j, i], side="right"
+            )
+    return lower

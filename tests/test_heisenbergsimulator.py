@@ -5,14 +5,14 @@ import stim
 from paulistringsquantumcircuitsimulations.circuit import Circuit, Gate
 from paulistringsquantumcircuitsimulations.heisenbergsimulator import HeisenbergSimulator
 
-def expectation(paulistrings: stim.PauliString, coefficients: jnp.ndarray) -> jnp.ndarray:
+def expectation_stim(paulistrings: stim.PauliString, coefficients: jnp.ndarray) -> jnp.ndarray:
     xs, zs = paulistrings.to_numpy()
     xs = jnp.array(xs, dtype=jnp.bool_)
     zs = jnp.array(zs, dtype=jnp.bool_)
 
     if jnp.any(xs):
-        return jnp.array(0.0, dtype=jnp.float64)
-    return jnp.array(jnp.real(paulistrings.sign * coefficients), dtype=jnp.float64)
+        return jnp.array(0.0, dtype=jnp.float32)
+    return jnp.array(jnp.real(paulistrings.sign * coefficients), dtype=jnp.float32)
 
 
 def test_heisenberg_simulator() -> None:
@@ -37,20 +37,20 @@ def test_heisenberg_simulator() -> None:
 
         exp_x = jnp.array(0.0, dtype=jnp.float64)
         if stim_x.commutes(stim.PauliString("Y")):
-            exp_x = expectation(stim_x, jnp.array(1.0, dtype=jnp.float64))
+            exp_x = expectation_stim(stim_x, jnp.array(1.0, dtype=jnp.float64))
         else:
             stim_yx = stim.PauliString("Y") * stim_x
-            exp_x = expectation(stim_x, jnp.cos(parameters * 2)) + expectation(
+            exp_x = expectation_stim(stim_x, jnp.cos(parameters * 2)) + expectation_stim(
                 stim_yx,
                 (1.0j) * jnp.sin(parameters * 2),
             )
 
         exp_z = jnp.array(0.0, dtype=jnp.float64)
         if stim_z.commutes(stim.PauliString("Y")):
-            exp_z = expectation(stim_z, jnp.array(1.0, dtype=jnp.float64))
+            exp_z = expectation_stim(stim_z, jnp.array(1.0, dtype=jnp.float64))
         else:
             stim_yz = stim.PauliString("Y") * stim_z
-            exp_z = expectation(stim_z, jnp.cos(parameters * 2)) + expectation(
+            exp_z = expectation_stim(stim_z, jnp.cos(parameters * 2)) + expectation_stim(
                 stim_yz,
                 (1.0j) * jnp.sin(parameters * 2),
             )
@@ -86,12 +86,12 @@ def test_heisenberg_simulator_including_clifford_gates() -> None:
     exp_x = jnp.array(0.0, dtype=jnp.float64)
     if stim_x.commutes(stim.PauliString("Z")):
         stim_x = stim_x.before(stim.CircuitInstruction("H", [0]))
-        exp_x = expectation(stim_x, jnp.array(1.0, dtype=jnp.float64))
+        exp_x = expectation_stim(stim_x, jnp.array(1.0, dtype=jnp.float64))
     else:
         stim_xz = stim.PauliString("Z") * stim_x
         stim_x = stim_x.before(stim.CircuitInstruction("H", [0]))
         stim_xz = stim_xz.before(stim.CircuitInstruction("H", [0]))
-        exp_x = expectation(stim_x, jnp.cos(parameters * 2)) + expectation(
+        exp_x = expectation_stim(stim_x, jnp.cos(parameters * 2)) + expectation_stim(
             stim_xz,
             (1.0j) * jnp.sin(parameters * 2),
         )
@@ -99,12 +99,12 @@ def test_heisenberg_simulator_including_clifford_gates() -> None:
     exp_z = jnp.array(0.0, dtype=jnp.float64)
     if stim_z.commutes(stim.PauliString("Z")):
         stim_z = stim_z.before(stim.CircuitInstruction("H", [0]))
-        exp_z = expectation(stim_z, jnp.array(1.0, dtype=jnp.float64))
+        exp_z = expectation_stim(stim_z, jnp.array(1.0, dtype=jnp.float64))
     else:
         stim_zz = stim.PauliString("Z") * stim_z
         stim_z = stim_z.before(stim.CircuitInstruction("H", [0]))
         stim_zz = stim_zz.before(stim.CircuitInstruction("H", [0]))
-        exp_z = expectation(stim_z, jnp.cos(parameters * 2)) + expectation(
+        exp_z = expectation_stim(stim_z, jnp.cos(parameters * 2)) + expectation_stim(
             stim_zz,
             (1.0j) * jnp.sin(parameters * 2),
         )
@@ -112,3 +112,8 @@ def test_heisenberg_simulator_including_clifford_gates() -> None:
     exp_ = exp_x + exp_z
 
     assert jnp.isclose(jnp.array(exp), jnp.array(exp_))
+
+def test() -> int:
+    return 0
+
+test()
